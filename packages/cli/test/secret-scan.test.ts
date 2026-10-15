@@ -58,6 +58,15 @@ describe('secret patterns', () => {
     expect(Object.keys(SECRET_SAMPLES).sort()).toEqual(SECRET_PATTERNS.map(p => p.id).sort())
   })
 
+  it('detects every Shopify access token prefix, and only a full-length token', () => {
+    for (const prefix of ['at', 'ca', 'pa', 'ss']) {
+      const token = `${'shp'}${prefix}_${'f'.repeat(32)}`
+      expect(scanText(`const t = '${token}'\n`)).toEqual([{file: 'sample.ts', line: 1, pattern: 'shopify-access-token'}])
+    }
+    expect(scanText(`const t = '${'shp'}at_${'f'.repeat(31)}'\n`)).toEqual([])
+    expect(scanText(`const t = '${'shp'}xx_${'f'.repeat(32)}'\n`)).toEqual([])
+  })
+
   for (const [id, sample] of Object.entries(SECRET_SAMPLES)) {
     it(`detects ${id} with its line number`, () => {
       const findings = scanText(`// header\nconst a = 1\nconst value = '${sample}'\n`)
