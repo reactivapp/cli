@@ -14,7 +14,7 @@ Reactiv builds and ships the app itself. You write the custom parts (components,
 
 ## Before you begin
 
-- **A Mac with Xcode 26.1 or newer, an iOS 16 simulator and CocoaPods** to run the app. The CLI itself also works on Linux (log in, submit, upgrade). Windows is not supported yet.
+- **A Mac with Xcode 26.1 or newer, an iOS simulator and CocoaPods** to run the app. The CLI itself also works on Linux (log in, submit, upgrade). Windows is not supported yet.
 - **Node.js 24 or newer** and npm. Get Node from [nodejs.org](https://nodejs.org/).
 - **From Reactiv:** your personal API key (it starts with `rpk_`); it is provisioned for your app, so the CLI knows which app you are customizing. The key is shown to you once. Keep it out of chat, screenshots and git.
 

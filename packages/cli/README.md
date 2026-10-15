@@ -5,7 +5,7 @@ The `reactiv` command for developers building customizations for a Reactiv Plus 
 ## Requirements
 
 - Node.js 24 or newer and npm.
-- macOS with Xcode, an iOS simulator and CocoaPods to run the app. Signing in, submitting and upgrading also work on Linux. Windows is not supported yet.
+- macOS with Xcode 26.1 or newer, an iOS simulator and CocoaPods to run the app. Signing in, submitting and upgrading also work on Linux. Windows is not supported yet.
 - An API key issued by Reactiv for your app. It is personal and shown to you once; keep it out of chat, screenshots and git.
 
 ## Install

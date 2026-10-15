@@ -13,7 +13,7 @@ This guide takes you from an empty folder to a submitted draft. Read it once top
 
 ## Before you start
 
-- A Mac with Xcode 26.1 or newer, at least one iOS 16 (or newer) simulator, and CocoaPods: `gem install cocoapods`, or `bundle install` in `app/` after scaffolding for the version the project pins. The CLI also runs on Linux for everything except `reactiv app run`. Windows is not supported.
+- A Mac with Xcode 26.1 or newer, at least one iOS simulator, and CocoaPods: `gem install cocoapods`, or `bundle install` in `app/` after scaffolding for the version the project pins. The CLI also runs on Linux for everything except `reactiv app run`. Windows is not supported.
 - Node.js 24 or newer, and npm.
 - Git, with your name and email configured: the scaffold makes an initial commit.
 - From Reactiv: your API key (starts with `rpk_`). It is provisioned for your app; the CLI takes the app UUID and merchant name from it.
