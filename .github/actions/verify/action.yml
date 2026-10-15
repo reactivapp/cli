@@ -1,0 +1,50 @@
+name: Verify
+description: The checks every workflow runs before it trusts the tree - install, build, lint, typecheck, tests, gate self-tests, the internal reference scan and the full-history secret scan. The caller checks out the repository with the full history first.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: 24
+        cache: pnpm
+
+    - name: Install
+      shell: bash
+      run: pnpm install --frozen-lockfile --ignore-scripts
+
+    - name: Build
+      shell: bash
+      run: pnpm build
+
+    - name: Lint
+      shell: bash
+      run: pnpm lint
+
+    - name: Typecheck
+      shell: bash
+      run: pnpm typecheck
+
+    - name: Unit tests
+      shell: bash
+      run: pnpm test
+
+    - name: CLI smoke
+      shell: bash
+      run: |
+        node packages/cli/bin/run --help
+        node packages/cli/bin/run app --help
+
+    - name: Gate self-tests
+      shell: bash
+      run: pnpm test:gates
+
+    - name: Internal reference scan (tree and file names)
+      shell: bash
+      run: pnpm scan:internal
+
+    - name: History secret scan
+      shell: bash
+      run: bash scripts/secret-scan.sh

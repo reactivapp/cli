@@ -22,6 +22,21 @@ export interface ProjectIdentity {
   slug: string
 }
 
+const SLUG = /^[a-z0-9-]+$/
+
+// The root package.json name is the merchant slug `app init` wrote; projects
+// scaffolded before that carry it as the app name's slug.
+const manifestSlug = (projectRoot: string): string | undefined => {
+  let manifest: unknown
+  try {
+    manifest = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'))
+  } catch {
+    return undefined
+  }
+  const name = (manifest as {name?: unknown} | null)?.name
+  return typeof name === 'string' && SLUG.test(name) ? name : undefined
+}
+
 // Same source `app submit` packs, so the binding check matches the artifact.
 export const loadProjectIdentity = (projectRoot: string): ProjectIdentity => {
   const confPath = path.join(projectRoot, PROJECT_CONFIG)
@@ -38,9 +53,9 @@ export const loadProjectIdentity = (projectRoot: string): ProjectIdentity => {
   if (typeof appUuid !== 'string' || typeof appName !== 'string' || !appUuid || !appName) {
     throw new Error(`${PROJECT_CONFIG} must export appUuid and appName as non-empty strings`)
   }
-  const slug = toSlug(appName)
+  const slug = manifestSlug(projectRoot) ?? toSlug(appName)
   if (!slug) {
-    throw new Error(`appName in ${PROJECT_CONFIG} produced an empty package slug — use a name with letters or digits`)
+    throw new Error(`package.json has no usable name and appName in ${PROJECT_CONFIG} produced an empty slug — restore the name a fresh \`reactiv app init\` writes`)
   }
   return {appUuid, appName, slug}
 }

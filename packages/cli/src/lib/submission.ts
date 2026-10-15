@@ -120,20 +120,6 @@ export const assertReExportTargetsPacked = (specifiers: string[], packedEntries:
   }
 }
 
-export const validateEntryPoint = (sourceDir: string): void => {
-  const extensions = ['.ts', '.tsx', '.js']
-  const indexFile = extensions
-    .map(ext => path.join(sourceDir, `index${ext}`))
-    .find(p => fs.existsSync(p))
-  if (!indexFile) {
-    throw new Error(
-      'entry point src/index.ts (or .tsx/.js) not found — create it and export CustomCompositions + registerCustomComponents',
-    )
-  }
-  const source = fs.readFileSync(indexFile, 'utf8')
-  validateEntryPointSource(source)
-}
-
 const isForbiddenName = (name: string): boolean =>
   [...FORBIDDEN_DIR_NAMES].some(f => f.toLowerCase() === name.toLowerCase())
 

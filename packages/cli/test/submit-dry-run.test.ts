@@ -229,7 +229,7 @@ describe('app submit against a mock vending API and a fixture registry', () => {
     writeFileSync(join(projectDir, 'reactiv.conf.js'), "module.exports = {appUuid: '11111111-1111-1111-1111-111111111111', appName: 'Globex'}\n")
     const result = await submit(['0.1.7'])
     expect(result.code).not.toBe(0)
-    expect(result.errorText).toContain('but this project belongs to globex (11111111-1111-1111-1111-111111111111)')
+    expect(result.errorText).toContain('but this project belongs to acme (11111111-1111-1111-1111-111111111111)')
     expect(mock.requests.filter(request => request.path === '/v1/tokens')).toEqual([])
     expect(npmCalls('view')).toEqual([])
   }, 30_000)
@@ -253,6 +253,7 @@ describe('app submit against a mock vending API and a fixture registry', () => {
     {file: 'aws-secret.ts', label: 'AWS secret access key', value: `${['aws', 'secret', 'access', 'key'].join(underscore)} = ${'Q7'.repeat(20)}`},
     {file: 'github.ts', label: 'GitHub token', value: `${'gh'}p_${'a'.repeat(36)}`},
     {file: 'github-fine.ts', label: 'GitHub fine-grained token', value: `${['github', 'pat'].join(underscore)}_${'b'.repeat(30)}`},
+    {file: 'shopify.ts', label: 'Shopify access token', value: `${'shp'}at_${'f'.repeat(32)}`},
     {file: 'npm.ts', label: 'npm token', value: `${'npm'}_${'c'.repeat(36)}`},
     {file: 'deploy.pem', label: 'PEM private key', value: `${'-'.repeat(5)}BEGIN OPENSSH PRIVATE KEY${'-'.repeat(5)}`},
     {file: 'reactiv.ts', label: 'Reactiv API key', value: `${'rpk'}_${'0'.repeat(26)}_${'x'.repeat(8)}`},

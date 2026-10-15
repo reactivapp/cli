@@ -13,10 +13,10 @@ This guide takes you from an empty folder to a submitted draft. Read it once top
 
 ## Before you start
 
-- A Mac with Xcode, at least one iOS simulator, and CocoaPods. The CLI also runs on Linux for everything except `reactiv app run`. Windows is not supported yet.
+- A Mac with Xcode 16.1 or newer, at least one iOS 16 (or newer) simulator, and CocoaPods: `gem install cocoapods`, or `bundle install` in `app/` after scaffolding for the version the project pins. The CLI also runs on Linux for everything except `reactiv app run`. Windows is not supported.
 - Node.js 24 or newer, and npm.
 - Git, with your name and email configured: the scaffold makes an initial commit.
-- From Reactiv: your API key (starts with `rpk_`), your app UUID, and the merchant slug your key is provisioned for (`reactiv whoami` shows it after you log in).
+- From Reactiv: your API key (starts with `rpk_`). It is provisioned for your app; the CLI takes the app UUID and merchant name from it.
 
 Your API key is personal and shown to you once. Keep it out of chat, screenshots and git. If you lose it, ask Reactiv for a new one.
 
@@ -54,7 +54,7 @@ reactiv app init
 cd <your-app-folder>
 ```
 
-The CLI asks for an app name and the app UUID Reactiv gave you, resolves the current platform version, downloads the app template and installs dependencies. The app name's slug (lowercase, dashes) must equal the merchant slug your key is provisioned for; `Acme Shop` gives `acme-shop`. The folder it creates has two parts:
+The CLI asks for an app name (the name shown in the app; any text without quotes, backslashes or newlines), takes the app UUID and merchant slug from your login, resolves the current platform version, downloads the app template and installs dependencies. The folder is named after the merchant slug, for example `acme`, and it has two parts:
 
 - **The root is your library.** This is what you submit. Your code lives in `src/`, and `package.json` declares the packages you add.
 - **`app/` is the runnable shell.** It wraps your library in a real app so you can run it. It is never submitted, and the platform version it runs is pinned for you.

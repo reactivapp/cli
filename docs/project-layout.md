@@ -22,7 +22,7 @@
 
 ## The library (root)
 
-The root `package.json` and `src/` are the submission. The manifest declares:
+The root `package.json` and `src/` are the submission. Its `name` is the merchant slug `reactiv app init` wrote and identifies the project to Reactiv; do not rename it. The manifest declares:
 
 - `main` or `react-native`: the entry point, `src/index.ts`, `src/index.tsx` or `src/index.js`. When both fields are set they must name the same file.
 - `files`: `["src"]`.
@@ -53,6 +53,8 @@ The checks run in this order. Steps 1 to 8 finish before the CLI contacts Reacti
 10. **The tarball itself.** The entry point and the files it re-exports the two required names from are in the packed tarball, and the unpacked size is within the cap.
 
 Each failure names the file and the exact edit. `--dry-run` runs all of them.
+
+These checks are a preflight. Reactiv's intake re-runs the same validation on the published draft before anything reaches review, so a draft published around the CLI is rejected there.
 
 ## Versions
 

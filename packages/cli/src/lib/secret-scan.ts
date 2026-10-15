@@ -10,6 +10,7 @@ export const SECRET_PATTERNS: ReadonlyArray<{id: string; label: string; regex: R
   {id: 'npm-token', label: 'npm token', regex: /npm_[A-Za-z0-9]{36}/},
   {id: 'pem-private-key', label: 'PEM private key', regex: /-{5}BEGIN (?:[A-Z0-9]{1,16} ){0,4}PRIVATE KEY(?: BLOCK)?-{5}/},
   {id: 'reactiv-api-key', label: 'Reactiv API key', regex: /rpk_[0-9A-HJKMNP-TV-Z]{26}_/},
+  {id: 'shopify-access-token', label: 'Shopify access token', regex: /shp(?:at|ca|pa|ss)_[0-9a-fA-F]{32}/},
 ]
 
 // No pattern matches more than MAX_MATCH_LENGTH characters, so an overlong

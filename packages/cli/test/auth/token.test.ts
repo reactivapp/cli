@@ -83,10 +83,10 @@ describe('ensureRegistryAuth', () => {
   const login = (apiKey = API_KEY, merchant = MERCHANT, keyExpiresAt = '2027-06-01T00:00:00Z') =>
     writeCredentials(env, {version: 1, apiKey: parseApiKey(apiKey), keyId: parseApiKey(apiKey).keyId, merchant, loggedInAt: 'then', keyExpiresAt})
 
-  const writeProject = (dir: string, appName = 'Acme', appUuid = MERCHANT.appUuid): void => {
+  const writeProject = (dir: string, appName = 'Acme', appUuid = MERCHANT.appUuid, packageName?: string): void => {
     mkdirSync(dir, {recursive: true})
     writeFileSync(join(dir, 'reactiv.conf.js'), `module.exports = {appUuid: '${appUuid}', appName: '${appName}'}\n`)
-    writeFileSync(join(dir, 'package.json'), '{}')
+    writeFileSync(join(dir, 'package.json'), packageName === undefined ? '{}' : JSON.stringify({name: packageName}))
   }
 
   const cache = () => JSON.parse(readFileSync(tokenCachePath(env), 'utf8'))

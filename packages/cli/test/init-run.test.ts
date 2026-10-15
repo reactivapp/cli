@@ -59,6 +59,24 @@ describe('app init and app run on the library layout', () => {
   const installs = (): string[] =>
     readFileSync(shim.log, 'utf8').split('\n').filter(line => line.startsWith('install '))
 
+  it('takes the folder, package name and app UUID from the login, whatever the app name is', async () => {
+    const result = await runCli(['app', 'init', '--name', 'Acme Shop Deluxe', '--path', workDir], {cwd: workDir, env})
+    expect(result.code).toBe(0)
+    const project = join(workDir, 'acme')
+    expect(JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).name).toBe('acme')
+    const conf = readFileSync(join(project, 'reactiv.conf.js'), 'utf8')
+    expect(conf).toContain(`appUuid: '${MERCHANT.appUuid}'`)
+    expect(conf).toContain("appName: 'Acme Shop Deluxe'")
+    expect(result.stdout).toContain('cd acme')
+  })
+
+  it('refuses an --app-uuid that is not the app the login is provisioned for', async () => {
+    const result = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
+    expect(result.code).not.toBe(0)
+    expect(flat(result.stderr)).toContain('is not the app your login is provisioned for')
+    expect(existsSync(join(workDir, 'acme'))).toBe(false)
+  })
+
   it('scaffolds the library at the root and the shell in app/, then installs both behind the managed block', async () => {
     const result = await init()
     expect(result.code).toBe(0)
@@ -85,11 +103,11 @@ describe('app init and app run on the library layout', () => {
   }, 60_000)
 
   it.each([
-    ['React Native', 'react-native', 'which the platform already uses'],
-    ['TypeScript', 'typescript', 'which the project itself installs'],
-    ['Metro', 'metro', 'which the project itself installs'],
+    ['React Native', 'react-native', 'the platform already uses'],
+    ['TypeScript', 'typescript', 'the project itself installs'],
+    ['Metro', 'metro', 'the project itself installs'],
   ])('refuses the app name %s, whose package name would shadow a package', async (name, slug, reason) => {
-    // The merchant binding runs first, so the logged-in merchant owns this slug.
+    // The slug comes from the login, so the mock merchant has to carry it.
     await mock.close()
     mock = await startMockVending({
       'GET /v1/me': () => ({status: 200, body: meResponse({merchant: {...MERCHANT, slug}, label: `${slug}/jane.doe`})}),

@@ -23,6 +23,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release-npmjs.yml'
+      - '.github/actions/verify/action.yml'
       - 'scripts/pack-inspect.mjs'
       - 'scripts/lib/pack-rules.mjs'
       - 'scripts/pack-allowlist.json'
@@ -47,36 +48,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Build
-        run: pnpm build
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Test
-        run: pnpm test
-
-      - name: Gate self-tests
-        run: pnpm test:gates
-
-      - name: Internal reference scan
-        run: pnpm scan:internal
-
-      - name: History secret scan
-        run: bash scripts/secret-scan.sh
+      - uses: ./.github/actions/verify
 
       - name: Pack inspection (files whitelist, tarball secret scan, endpoint allowlist)
         run: pnpm pack:inspect --out "$RUNNER_TEMP/npmjs-tarballs"

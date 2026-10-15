@@ -24,6 +24,7 @@ const SECRET_SAMPLES: Record<string, string> = {
   'npm-token': `${'npm'}_${'c'.repeat(36)}`,
   'pem-private-key': `${'-'.repeat(5)}BEGIN RSA PRIVATE KEY${'-'.repeat(5)}`,
   'reactiv-api-key': `${'rpk'}_${'0'.repeat(26)}_${'x'.repeat(8)}`,
+  'shopify-access-token': `${'shp'}at_${'f'.repeat(32)}`,
 }
 
 const CLEAN_LOOKALIKES = [

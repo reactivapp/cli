@@ -6,7 +6,7 @@ The `reactiv` command for developers building customizations for a Reactiv Plus 
 
 - Node.js 24 or newer and npm.
 - macOS with Xcode, an iOS simulator and CocoaPods to run the app. Signing in, submitting and upgrading also work on Linux. Windows is not supported yet.
-- An API key and an app UUID issued by Reactiv. The key is personal and shown to you once; keep it out of chat, screenshots and git.
+- An API key issued by Reactiv for your app. It is personal and shown to you once; keep it out of chat, screenshots and git.
 
 ## Install
 
@@ -19,7 +19,7 @@ reactiv --version
 
 ```bash
 reactiv login                # paste your API key at the hidden prompt
-reactiv app init             # asks for an app name and the app UUID, then installs dependencies
+reactiv app init             # asks for an app name, then installs dependencies
 cd <your-app-folder>
 reactiv app run ios          # pod install, Metro, build, launch on the booted simulator
 reactiv app submit --dry-run # every check, nothing published

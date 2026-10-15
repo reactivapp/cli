@@ -135,6 +135,7 @@ describe('secret scan (scripts/secret-patterns.ere)', () => {
     'AWS secret key env name': concat('AWS_SECRET_', 'ACCESS_KEY=x'),
     // A secret may legitimately end in `-`, which is why the pattern's right boundary is explicit.
     'Reactiv Plus API key': 'rpk_' + '01J8ZQ4W6R8V2X9N3M5K7T1P0C' + '_' + 'A'.repeat(42) + '-',
+    'Shopify access token': concat('shpat_', 'f'.repeat(32)),
   }
 
   for (const [label, sample] of Object.entries(samples)) {

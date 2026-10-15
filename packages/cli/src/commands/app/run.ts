@@ -4,6 +4,7 @@ import * as fs from 'node:fs'
 import * as http from 'node:http'
 import * as path from 'node:path'
 
+import {assertSupportedPlatform} from '../../lib/auth/context'
 import {capture, run} from '../../lib/npm'
 import {assertDependenciesInSync, readManifest, resolveLayout, type ProjectLayout} from '../../lib/layout'
 import {assertLibraryManifest} from '../../lib/submission'
@@ -55,6 +56,7 @@ export class AppRun extends Command {
   async run(): Promise<void> {
     const {renderSuccess} = await import('@reactivapp/cli-ui')
     const {flags} = await this.parse(AppRun)
+    assertSupportedPlatform(process.platform, this)
     const projectRoot = process.cwd()
 
     if (!fs.existsSync(path.join(projectRoot, 'reactiv.conf.js'))) {

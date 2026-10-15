@@ -1,6 +1,6 @@
 import {Command, Flags} from '@oclif/core'
 
-import {assertSupportedPlatform, createAuthContext, reportAuthError} from '../lib/auth/context'
+import {createAuthContext, reportAuthError} from '../lib/auth/context'
 import {type ApiKey, parseApiKey, writeCredentials} from '../lib/auth/credentials'
 import {AuthError, sanitizeForOutput} from '../lib/auth/errors'
 import {withLock} from '../lib/auth/lock'
@@ -31,7 +31,6 @@ export class Login extends Command {
   async run(): Promise<void> {
     const {flags} = await this.parse(Login)
     try {
-      assertSupportedPlatform(process.platform)
       const ctx = createAuthContext(this, {nonInteractive: flags['non-interactive']})
       if (ctx.env[API_KEY_ENV]) {
         await this.validateEnvKey(ctx)

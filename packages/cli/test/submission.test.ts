@@ -20,50 +20,8 @@ import {
   readPlatformVersionFromLockfile,
   resolveExistingVersions,
   type VersionQuery,
-  validateEntryPoint,
   validateEntryPointSource,
 } from '../src/lib/submission'
-
-describe('submit validate entry point', () => {
-  it('throws when entry point file is missing', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'custom-'))
-    expect(() => validateEntryPoint(dir)).toThrow('entry point')
-  })
-
-  it('throws when entry point is missing required exports', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'custom-'))
-    writeFileSync(join(dir, 'index.ts'), 'export const Foo = 1')
-    expect(() => validateEntryPoint(dir)).toThrow('CustomCompositions')
-    expect(() => validateEntryPoint(dir)).toThrow('registerCustomComponents')
-  })
-
-  it('passes when both exports are present', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'custom-'))
-    writeFileSync(
-      join(dir, 'index.ts'),
-      'export const CustomCompositions = {};\nexport function registerCustomComponents() {}',
-    )
-    expect(() => validateEntryPoint(dir)).not.toThrow()
-  })
-
-  it('passes for re-export braces, the scaffold shape', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'custom-'))
-    writeFileSync(
-      join(dir, 'index.ts'),
-      "export {CustomCompositions} from './customizations/CustomCompositions';\nexport {registerCustomComponents} from './customizations/registerCustomComponents';",
-    )
-    expect(() => validateEntryPoint(dir)).not.toThrow()
-  })
-
-  it('rejects symbols that appear only in comments beside an unrelated export', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'custom-'))
-    writeFileSync(
-      join(dir, 'index.ts'),
-      '// TODO: add CustomCompositions and registerCustomComponents\nexport const Unrelated = 1',
-    )
-    expect(() => validateEntryPoint(dir)).toThrow('entry point')
-  })
-})
 
 describe('submit validateEntryPointSource (parser-based)', () => {
   it('rejects commented-out exports', () => {

@@ -246,13 +246,13 @@ describe('scripted walkthrough against a mock vending API: login → app init �
     expect(readdirSync(project)).toEqual([])
   }, 60_000)
 
-  it('refuses to scaffold another merchant’s app before minting anything', async () => {
+  it('refuses to scaffold for an app UUID the login is not provisioned for, before minting anything', async () => {
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
     const init = await runCli(['app', 'init', '--name', 'Globex', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
     expect(init.code).not.toBe(0)
-    expect(init.errorText).toContain(`Logged in as acme (${MERCHANT.appUuid}), but this project belongs to globex`)
+    expect(init.errorText).toContain(`is not the app your login is provisioned for (${MERCHANT.appUuid})`)
     expect(mock.requests.filter(request => request.path === '/v1/tokens')).toEqual([])
-    expect(existsSync(join(workDir, 'globex'))).toBe(false)
+    expect(existsSync(join(workDir, 'acme'))).toBe(false)
   }, 60_000)
 
   it('refuses to write a token into a scaffold whose .gitignore does not cover .npmrc', async () => {

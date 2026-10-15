@@ -7,11 +7,11 @@ import * as readline from 'node:readline/promises'
 
 import {createAuthContext, reportAuthError} from '../../lib/auth/context'
 import {gitIgnoreState, gitProbeEnv, installRoots} from '../../lib/auth/npmrc'
-import {assertProjectBinding, ensureRegistryAuth, type RegistryAuth, resolveIdentity} from '../../lib/auth/token'
+import {ensureRegistryAuth, type Identity, type RegistryAuth, resolveIdentity} from '../../lib/auth/token'
 import {assertSameRegistries, BootstrapRegistry, installWithRegistryAuth, skippedInstallScripts} from '../../lib/bootstrap-registry'
 import {APP_DIR, PLATFORM_PACKAGES, readManifest} from '../../lib/layout'
 import {run} from '../../lib/npm'
-import {defaultBundleIdentifier, expandedName, expandTemplate, toSlug} from '../../lib/scaffold'
+import {defaultBundleIdentifier, expandedName, expandTemplate} from '../../lib/scaffold'
 
 const prompt = async (question: string, flagHint: string): Promise<string> => {
   if (!process.stdin.isTTY) {
@@ -42,11 +42,11 @@ const assertNoNpmrcStaged = (targetDir: string): void => {
 
 export class AppInit extends Command {
   static override description =
-    'Scaffold a new Reactiv Plus app project from @reactivapp/app-template (platform version stamped from the registry)'
+    'Scaffold a new Reactiv Plus app project from @reactivapp/app-template for the merchant you are logged in as (platform version stamped from the registry)'
 
   static override flags = {
-    name: Flags.string({description: 'app name'}),
-    'app-uuid': Flags.string({description: 'Reactiv app UUID (identifies the merchant app)'}),
+    name: Flags.string({description: 'app name shown in the app (any text without quotes, backslashes or newlines)'}),
+    'app-uuid': Flags.string({description: 'Reactiv app UUID; defaults to the app your login is provisioned for and is refused when it differs'}),
     path: Flags.string({description: 'parent directory to scaffold into', default: '.'}),
     'package-manager': Flags.string({description: 'package manager for the project', options: ['npm'], default: 'npm'}),
     'bundle-id': Flags.string({description: 'iOS bundle identifier (default com.reactiv.<slug>)'}),
@@ -58,17 +58,26 @@ export class AppInit extends Command {
     const {flags} = await this.parse(AppInit)
 
     const appName = flags.name ?? (await prompt('App name: ', '--name'))
-    const appUuid = flags['app-uuid'] ?? (await prompt('App UUID: ', '--app-uuid'))
-    if (!appName || !appUuid) this.error('app name and app UUID are required (use --name / --app-uuid)')
+    if (!appName) this.error('app name is required (use --name)')
     // The name is stamped into JSON and JS files — quotes/backslashes would
     // corrupt the generated configs.
     if (/["'\\\n]/.test(appName)) {
       this.error('app name must not contain quotes, backslashes, or newlines')
     }
 
-    const appSlug = toSlug(appName)
-    if (!appSlug) {
-      this.error('app name must contain at least one letter or digit (slug came out empty)')
+    const ctx = createAuthContext(this)
+    let identity: Identity
+    try {
+      identity = await resolveIdentity(ctx)
+    } catch (error) {
+      return reportAuthError(this, error)
+    }
+    // The merchant the login is provisioned for decides the project identity:
+    // its slug is the folder and package name, its UUID the app.
+    const appSlug = identity.merchant.slug
+    const appUuid = identity.merchant.appUuid
+    if (flags['app-uuid'] !== undefined && flags['app-uuid'] !== appUuid) {
+      this.error(`--app-uuid ${flags['app-uuid']} is not the app your login is provisioned for (${appUuid}) — drop the flag, or log in with that app's key`)
     }
     const targetDir = path.resolve(flags.path, appSlug)
     if (fs.existsSync(targetDir)) {
@@ -80,11 +89,8 @@ export class AppInit extends Command {
       }
     }
 
-    const ctx = createAuthContext(this)
     let auth: RegistryAuth
     try {
-      const identity = await resolveIdentity(ctx)
-      assertProjectBinding(identity.merchant, {slug: appSlug, appUuid})
       auth = await ensureRegistryAuth(ctx)
     } catch (error) {
       return reportAuthError(this, error)
@@ -114,7 +120,7 @@ export class AppInit extends Command {
       }
       const platformDependencies = await registry.platformManifestField(platformVersion, 'dependencies')
       if (PLATFORM_PACKAGES.includes(appSlug) || Object.hasOwn(platformDependencies, appSlug) || Object.hasOwn(peers, appSlug)) {
-        this.error(`app name "${appName}" gives the package name "${appSlug}", which the platform already uses — choose a different app name`)
+        this.error(`the merchant slug "${appSlug}" is a package name the platform already uses — contact Reactiv`)
       }
 
       // Download the template via npm so the transcript shows the registry URL.
@@ -146,7 +152,7 @@ export class AppInit extends Command {
           }),
         ) as Record<string, unknown>
         if (Object.hasOwn(ownDeps, appSlug)) {
-          throw new Error(`app name "${appName}" gives the package name "${appSlug}", which the project itself installs — choose a different app name`)
+          throw new Error(`the merchant slug "${appSlug}" is a package name the project itself installs — contact Reactiv`)
         }
 
         run('git', ['init', '--quiet'], {cwd: targetDir})

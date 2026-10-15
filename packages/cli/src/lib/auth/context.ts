@@ -7,6 +7,7 @@ import type {AuthContext} from './token'
 import {createVendingClient, resolveVendingApiUrl} from './vending-client'
 
 export const createAuthContext = (command: Command, options: {nonInteractive?: boolean} = {}): AuthContext => {
+  assertSupportedPlatform(process.platform, command)
   const env = process.env
   const {url, overridden} = resolveVendingApiUrl(env)
   if (overridden) command.log(`using vending API ${url}`)
@@ -20,8 +21,10 @@ export const createAuthContext = (command: Command, options: {nonInteractive?: b
   }
 }
 
-export const assertSupportedPlatform = (platform: NodeJS.Platform): void => {
-  if (platform === 'win32') throw new AuthError(UNSUPPORTED_PLATFORM)
+export const assertSupportedPlatform = (platform: NodeJS.Platform, command?: Command): void => {
+  if (platform !== 'win32') return
+  if (command) command.error(UNSUPPORTED_PLATFORM)
+  throw new AuthError(UNSUPPORTED_PLATFORM)
 }
 
 export const reportAuthError = (command: Command, error: unknown): never => {
