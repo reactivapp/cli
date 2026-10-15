@@ -1,6 +1,6 @@
 {
   "name": "@reactivapp/cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Reactiv Plus CLI — scaffold, run, upgrade, and submit customizations for your Reactiv mobile app",
   "license": "UNLICENSED",
   "repository": {
