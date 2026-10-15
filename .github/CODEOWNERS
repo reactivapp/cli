@@ -1,0 +1,8 @@
+# Review requests for the files that control what gets published.
+* @agorovyi
+/.github/ @agorovyi
+/scripts/ @agorovyi
+/packages/cli/package.json @agorovyi
+/packages/cli-ui/package.json @agorovyi
+/LICENSE @agorovyi
+/SECURITY.md @agorovyi

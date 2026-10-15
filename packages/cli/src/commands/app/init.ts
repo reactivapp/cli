@@ -1,0 +1,206 @@
+import {Command, Flags} from '@oclif/core'
+import {execFileSync} from 'node:child_process'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import * as readline from 'node:readline/promises'
+
+import {createAuthContext, reportAuthError} from '../../lib/auth/context'
+import {gitIgnoreState, gitProbeEnv, installRoots} from '../../lib/auth/npmrc'
+import {assertProjectBinding, ensureRegistryAuth, type RegistryAuth, resolveIdentity} from '../../lib/auth/token'
+import {assertSameRegistries, BootstrapRegistry, installWithRegistryAuth, skippedInstallScripts} from '../../lib/bootstrap-registry'
+import {APP_DIR, PLATFORM_PACKAGES, readManifest} from '../../lib/layout'
+import {run} from '../../lib/npm'
+import {defaultBundleIdentifier, expandedName, expandTemplate, toSlug} from '../../lib/scaffold'
+
+const prompt = async (question: string, flagHint: string): Promise<string> => {
+  if (!process.stdin.isTTY) {
+    throw new Error(`missing required value — pass ${flagHint} (interactive prompt needs a TTY)`)
+  }
+  const rl = readline.createInterface({input: process.stdin, output: process.stdout})
+  const answer = await rl.question(question)
+  rl.close()
+  return answer.trim()
+}
+
+const assertNpmrcIgnored = (targetDir: string): void => {
+  for (const root of installRoots(targetDir)) {
+    const relative = path.relative(targetDir, path.join(root, '.npmrc'))
+    if (gitIgnoreState(path.join(root, '.npmrc')) !== 'ignored') {
+      throw new Error(`the scaffold's .gitignore does not ignore ${relative} — refusing to write a registry token into a file git would commit`)
+    }
+  }
+}
+
+const assertNoNpmrcStaged = (targetDir: string): void => {
+  const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {cwd: targetDir, encoding: 'utf8', env: gitProbeEnv()})
+  const leaked = staged.split('\n').filter(file => path.basename(file) === '.npmrc')
+  if (leaked.length > 0) {
+    throw new Error(`refusing to commit ${leaked.join(', ')}: it holds a registry token`)
+  }
+}
+
+export class AppInit extends Command {
+  static override description =
+    'Scaffold a new Reactiv Plus app project from @reactivapp/app-template (platform version stamped from the registry)'
+
+  static override flags = {
+    name: Flags.string({description: 'app name'}),
+    'app-uuid': Flags.string({description: 'Reactiv app UUID (identifies the merchant app)'}),
+    path: Flags.string({description: 'parent directory to scaffold into', default: '.'}),
+    'package-manager': Flags.string({description: 'package manager for the project', options: ['npm'], default: 'npm'}),
+    'bundle-id': Flags.string({description: 'iOS bundle identifier (default com.reactiv.<slug>)'}),
+    'skip-install': Flags.boolean({description: 'skip dependency installation', default: false}),
+  }
+
+  async run(): Promise<void> {
+    const {renderSuccess, renderInfo} = await import('@reactivapp/cli-ui')
+    const {flags} = await this.parse(AppInit)
+
+    const appName = flags.name ?? (await prompt('App name: ', '--name'))
+    const appUuid = flags['app-uuid'] ?? (await prompt('App UUID: ', '--app-uuid'))
+    if (!appName || !appUuid) this.error('app name and app UUID are required (use --name / --app-uuid)')
+    // The name is stamped into JSON and JS files — quotes/backslashes would
+    // corrupt the generated configs.
+    if (/["'\\\n]/.test(appName)) {
+      this.error('app name must not contain quotes, backslashes, or newlines')
+    }
+
+    const appSlug = toSlug(appName)
+    if (!appSlug) {
+      this.error('app name must contain at least one letter or digit (slug came out empty)')
+    }
+    const targetDir = path.resolve(flags.path, appSlug)
+    if (fs.existsSync(targetDir)) {
+      if (!fs.statSync(targetDir).isDirectory()) {
+        this.error(`target path ${targetDir} exists and is not a directory`)
+      }
+      if (fs.readdirSync(targetDir).length > 0) {
+        this.error(`target directory ${targetDir} already exists and is not empty`)
+      }
+    }
+
+    const ctx = createAuthContext(this)
+    let auth: RegistryAuth
+    try {
+      const identity = await resolveIdentity(ctx)
+      assertProjectBinding(identity.merchant, {slug: appSlug, appUuid})
+      auth = await ensureRegistryAuth(ctx)
+    } catch (error) {
+      return reportAuthError(this, error)
+    }
+
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reactiv-init-'))
+    const targetExistedBefore = fs.existsSync(targetDir)
+    if (targetExistedBefore && fs.readdirSync(targetDir).length > 0) this.error(`target directory ${targetDir} is no longer empty`)
+    const createdEntries = new Set<string>(['.git', '.npmrc', 'node_modules', 'package-lock.json'])
+    let fileCount = 0
+    let platformVersion = ''
+    let reactVersion: string | undefined
+    let reactNativeVersion: string | undefined
+    try {
+      const registry = new BootstrapRegistry(ctx, workDir, auth)
+
+      renderInfo({headline: 'Resolving Reactiv platform', body: [`registry lookup for @reactivapp/mobile + @reactivapp/app-template`]})
+      platformVersion = await registry.latestPlatformVersion()
+      if (!platformVersion) {
+        this.error('could not resolve the @reactivapp/mobile version from the registry — run `reactiv whoami` to check your login')
+      }
+      const peers = await registry.platformManifestField(platformVersion, 'peerDependencies')
+      reactVersion = peers.react
+      reactNativeVersion = peers['react-native']
+      if (!reactVersion || !reactNativeVersion) {
+        this.error('could not resolve @reactivapp/mobile version/peers from the registry — run `reactiv whoami` to check your login')
+      }
+      const platformDependencies = await registry.platformManifestField(platformVersion, 'dependencies')
+      if (PLATFORM_PACKAGES.includes(appSlug) || Object.hasOwn(platformDependencies, appSlug) || Object.hasOwn(peers, appSlug)) {
+        this.error(`app name "${appName}" gives the package name "${appSlug}", which the platform already uses — choose a different app name`)
+      }
+
+      // Download the template via npm so the transcript shows the registry URL.
+      this.log('Downloading @reactivapp/app-template…')
+      const templateDir = await registry.fetchTemplate()
+
+      try {
+        for (const name of fs.readdirSync(templateDir)) createdEntries.add(expandedName(name))
+        fileCount = expandTemplate(templateDir, targetDir, {
+          appName,
+          appSlug,
+          appUuid,
+          bundleIdentifier: flags['bundle-id'] ?? defaultBundleIdentifier(appSlug),
+          platformVersion,
+          reactVersion,
+          reactNativeVersion,
+        })
+
+        if (!fs.existsSync(path.join(targetDir, APP_DIR, 'package.json')) || !fs.existsSync(path.join(targetDir, 'src'))) {
+          throw new Error(
+            `the downloaded @reactivapp/app-template has no ${APP_DIR}/ shell or src/ library — it predates the library layout this CLI expects; ask Reactiv to publish the current template`,
+          )
+        }
+        const ownDeps = Object.assign(
+          {},
+          ...[path.join(targetDir, 'package.json'), path.join(targetDir, APP_DIR, 'package.json')].flatMap(manifestPath => {
+            const manifest = readManifest(manifestPath)
+            return [manifest.dependencies, manifest.devDependencies]
+          }),
+        ) as Record<string, unknown>
+        if (Object.hasOwn(ownDeps, appSlug)) {
+          throw new Error(`app name "${appName}" gives the package name "${appSlug}", which the project itself installs — choose a different app name`)
+        }
+
+        run('git', ['init', '--quiet'], {cwd: targetDir})
+        assertNpmrcIgnored(targetDir)
+
+        assertSameRegistries(registry, await ensureRegistryAuth(ctx, targetDir))
+
+        if (!flags['skip-install']) {
+          this.log('Installing library dependencies (npm, root)…')
+          await installWithRegistryAuth(ctx, registry, targetDir, targetDir)
+          if (!fs.existsSync(path.join(targetDir, 'node_modules', '@reactivapp', 'mobile', 'package.json'))) {
+            this.warn('the root install did not add the @reactivapp/mobile peer (is legacy-peer-deps set in your npm config?) — editor types and `npm run typecheck` need it; the app still runs')
+          }
+          this.log(`Installing app shell dependencies (npm, ${APP_DIR}/)…`)
+          await installWithRegistryAuth(ctx, registry, targetDir, path.join(targetDir, APP_DIR))
+          const skipped = skippedInstallScripts(path.join(targetDir, APP_DIR))
+          if (skipped.length > 0) {
+            this.warn(`install scripts were not run in ${APP_DIR}/ for: ${skipped.join(', ')} — run \`npm rebuild\` in ${APP_DIR}/ if the app fails to build`)
+          }
+        }
+
+        run('git', ['add', '-A'], {cwd: targetDir})
+        assertNoNpmrcStaged(targetDir)
+        run('git', ['commit', '--quiet', '-m', 'Initial scaffold from @reactivapp/app-template'], {cwd: targetDir})
+      } catch (error) {
+        // A half-initialized scaffold would block every re-run with
+        // "already exists and is not empty" — clean up what this run created.
+        if (!targetExistedBefore) {
+          fs.rmSync(targetDir, {recursive: true, force: true})
+          this.warn(`scaffold failed — removed partial project at ${targetDir}; fix the cause and re-run`)
+        } else {
+          try {
+            for (const entry of createdEntries) fs.rmSync(path.join(targetDir, entry), {recursive: true, force: true})
+            this.warn(`scaffold failed — removed what this run created in ${targetDir}; check it before re-running`)
+          } catch (cleanupError) {
+            this.warn(`scaffold failed and ${targetDir} could not be cleaned (${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}) — remove what this run created before re-running`)
+          }
+        }
+        throw error
+      }
+    } catch (error) {
+      reportAuthError(this, error)
+    } finally {
+      fs.rmSync(workDir, {recursive: true, force: true})
+    }
+
+    renderSuccess({
+      headline: `Scaffolded ${appName}`,
+      body: [
+        `${fileCount} files expanded to ${targetDir}`,
+        `library: package.json + src/ (what gets submitted); runnable shell: ${APP_DIR}/`,
+        `platform @reactivapp/mobile@${platformVersion} (react ${reactVersion}, react-native ${reactNativeVersion})`,
+      ],
+      nextSteps: [`cd ${appSlug}`, 'reactiv app run ios'],
+    })
+  }
+}

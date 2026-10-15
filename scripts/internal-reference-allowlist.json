@@ -1,0 +1,157 @@
+{
+  "allowedHosts": [
+    {
+      "host": "127.0.0.1",
+      "reason": "loopback literal: reactiv app run probes the local Metro port, and the vending API override accepts plain http only here (mock servers)"
+    },
+    {
+      "host": "[::1]",
+      "reason": "IPv6 loopback literal for the same plain-http mock-server override"
+    },
+    {
+      "host": "plus-devtools-staging.dev.reactivapp.com",
+      "reason": "the Reactiv token service the CLI talks to by default today"
+    },
+    {
+      "host": "plus-devtools.reactivapp.com",
+      "reason": "the production hostname of the Reactiv token service, named in the release checklist as the default a later release switches to"
+    },
+    {
+      "host": "github.com",
+      "reason": "this repository: package.json repository fields, documentation links and the provenance requirement; repository links are further limited by allowedRepositories"
+    },
+    {
+      "host": "registry.npmjs.org",
+      "reason": "the public npm registry the packages are published to"
+    },
+    {
+      "host": "www.npmjs.com",
+      "reason": "package pages and npm documentation links"
+    },
+    {
+      "host": "docs.npmjs.com",
+      "reason": "npm documentation links (provenance, trusted publishing, .npmrc)"
+    },
+    {
+      "host": "img.shields.io",
+      "reason": "README badges"
+    },
+    {
+      "host": "nodejs.org",
+      "reason": "Node.js download link in the documentation"
+    },
+    {
+      "host": "pnpm.io",
+      "reason": "pnpm installation link for contributors"
+    },
+    {
+      "host": "unpkg.com",
+      "reason": "the changesets config schema URL"
+    },
+    {
+      "host": "reactiv.ai",
+      "reason": "the domain of the security contact address; addresses are further limited by allowedEmails"
+    },
+    {
+      "host": "anthropic.com",
+      "reason": "domain of the attribution address in commit trailers of AI-assisted changes"
+    },
+    {
+      "host": "eslint.org",
+      "reason": "named in the deprecation notice npm records in the lockfile for the current eslint release"
+    },
+    {
+      "host": "users.noreply.github.com",
+      "reason": "the domain of GitHub no-reply commit identities, named in allowedAuthorDomains"
+    },
+    {
+      "host": "reactivapp.com",
+      "reason": "the company domain, named in allowedAuthorDomains"
+    }
+  ],
+  "restrictedUrlHosts": [
+    "github.com"
+  ],
+  "allowedEmails": [
+    {
+      "address": "security@reactiv.ai",
+      "reason": "the security contact in SECURITY.md"
+    },
+    {
+      "address": "noreply@anthropic.com",
+      "reason": "the Co-Authored-By trailer on commits authored with Claude Code"
+    }
+  ],
+  "allowedNumbers": [],
+  "fixturePaths": [
+    {
+      "path": "packages/*/test/**",
+      "reason": "tests exercise the registry host-shape check, so they may name the registry service and the placeholder-account host; every other marker, host, number and address rule still applies"
+    },
+    {
+      "path": "scripts/test/*.test.mjs",
+      "reason": "gate self-tests exercise the same host-shape check with the placeholder account; seeded forbidden values are assembled at runtime"
+    }
+  ],
+  "secretPatternFiles": [
+    "scripts/secret-patterns.ere",
+    "scripts/secret-message-patterns.ere"
+  ],
+  "allowedRepositories": [
+    {
+      "repository": "reactivapp/cli",
+      "reason": "this repository, in any URL form"
+    },
+    {
+      "repository": "vadimdemedes/ink",
+      "reason": "the renderer cli-ui is built on, linked from its README"
+    }
+  ],
+  "allowedMarkerLines": [
+    {
+      "path": "packages/cli/src/lib/auth/npmrc.ts",
+      "line": "export const VENDED_REGISTRY_HOST = /^[a-z0-9-]+\\.d\\.codeartifact\\.[a-z0-9-]+\\.amazonaws\\.com$/",
+      "reason": "the host-shape check every vended registry URL must pass before a token is written; a generic pattern with no account, domain or region"
+    },
+    {
+      "path": "packages/cli/src/lib/auth/npmrc.ts",
+      "line": "throw new AuthError('vending API returned a registry URL outside CodeArtifact — nothing written')",
+      "reason": "the refusal message for a URL that fails that check"
+    },
+    {
+      "path": "scripts/lib/pack-rules.mjs",
+      "line": "export const INTERNAL_ENDPOINT = /(amazonaws\\.com|codeartifact|\\.internal\\b|reactivapp-\\d{12})/i",
+      "reason": "the marker pattern the tarball inspection and this scan enforce"
+    },
+    {
+      "path": "scripts/lib/internal-reference-rules.mjs",
+      "line": "const SERVICE_MARKER = /^(amazonaws\\.com|codeartifact)$/i",
+      "reason": "the two service names fixtures may use"
+    },
+    {
+      "path": "scripts/lib/internal-reference-rules.mjs",
+      "line": "const PLACEHOLDER_REGISTRY_HOST = /^(?:[a-z0-9-]+-)?000000000000\\.d\\.codeartifact\\.[a-z0-9-]+\\.amazonaws\\.com$/i",
+      "reason": "the placeholder-account registry host shape fixtures may use"
+    },
+    {
+      "path": "scripts/pack-allowlist.json",
+      "line": "\"literal\": \"/^[a-z0-9-]+\\\\.d\\\\.codeartifact\\\\.[a-z0-9-]+\\\\.amazonaws\\\\.com$/\",",
+      "reason": "the exact literal the tarball inspection exempts"
+    },
+    {
+      "path": "scripts/pack-allowlist.json",
+      "line": "\"literal\": \"registry URL outside CodeArtifact\",",
+      "reason": "the refusal message the tarball inspection exempts"
+    }
+  ],
+  "allowedAuthorDomains": [
+    {
+      "domain": "reactivapp.com",
+      "reason": "maintainers commit under their company address; that identity is public on every commit"
+    },
+    {
+      "domain": "users.noreply.github.com",
+      "reason": "GitHub no-reply identities"
+    }
+  ]
+}

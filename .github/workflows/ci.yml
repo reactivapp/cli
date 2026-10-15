@@ -1,0 +1,83 @@
+name: CI
+
+# Every pull request and every push to main: build, lint, typecheck, test,
+# the gate self-tests, the tarball inspection, the repository-wide scan for
+# internal references (the tree, file names, the commit messages and every
+# file version the commits introduced), the full-history secret scan, and
+# the changeset check. No step holds a credential, so forks get the same run.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          # The history scan and the commit-message scan need every commit.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Build
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: CLI smoke
+        run: |
+          node packages/cli/bin/run --help
+          node packages/cli/bin/run app --help
+
+      - name: Gate self-tests
+        run: pnpm test:gates
+
+      - name: Internal reference scan (tree and file names)
+        run: pnpm scan:internal
+
+      # On a pull request the range is the contributor's own commits, so author
+      # and committer addresses are checked. A push to main carries the forge's
+      # merge or squash identities, so only the message bodies are checked there.
+      - name: Internal reference scan (commit messages)
+        run: pnpm scan:internal --messages "${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.event.after) }}" ${{ github.event_name != 'pull_request' && '--bodies-only' || '' }}
+
+      - name: Internal reference scan (file versions introduced by these commits)
+        run: pnpm scan:internal --history "${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.event.after) }}"
+
+      - name: History secret scan
+        run: bash scripts/secret-scan.sh
+
+      # A change to a published package must carry a changeset naming it, or
+      # the next release would skip it silently. The version pull request that
+      # consumes changesets is recognised by its shape.
+      - name: Changeset check
+        if: ${{ github.event_name == 'pull_request' }}
+        run: pnpm changeset:check --since "${{ github.event.pull_request.base.sha }}"
+
+      # Fails on any tarball entry outside the files whitelist, a manifest
+      # target missing from the tarball, any secret-pattern match and any
+      # hostname not on the allowed list.
+      - name: Pack inspection
+        run: pnpm pack:inspect

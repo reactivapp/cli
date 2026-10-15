@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in the reactiv command behaves wrongly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you paste anything, remove: your API key, any registry token, the contents of `.npmrc`, your app UUID, your merchant name, key labels and holder names, and registry URLs. Replace them with `<redacted>`. The CLI never needs them to be shared to reproduce a bug.
+  - type: input
+    id: version
+    attributes:
+      label: CLI version
+      description: Output of `reactiv --version`
+      placeholder: '@reactivapp/cli/0.6.1 darwin-arm64 node-v24.2.0'
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran, with any values that identify your app replaced by `<redacted>`
+      placeholder: reactiv app submit --dry-run
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: The relevant lines of output, redacted as described above. A few lines are better than the whole transcript.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Redaction
+      options:
+        - label: I removed keys, tokens, `.npmrc` contents, app UUIDs, merchant names, key labels, holder names and registry URLs from everything above.
+          required: true

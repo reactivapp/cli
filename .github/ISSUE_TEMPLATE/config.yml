@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/reactivapp/cli/blob/main/SECURITY.md
+    about: Report privately by email; never open a public issue for a security problem.
+  - name: Questions about your app, API key or review
+    url: https://github.com/reactivapp/cli/blob/main/README.md#getting-help
+    about: Those go to your Reactiv contact, not to this tracker.

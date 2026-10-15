@@ -1,0 +1,24 @@
+{
+  "name": "reactiv-cli-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:gates": "node --test 'scripts/test/*.test.mjs'",
+    "pack:inspect": "node scripts/pack-inspect.mjs",
+    "scan:internal": "node scripts/internal-reference-scan.mjs",
+    "changeset:check": "node scripts/changeset-check.mjs",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.0"
+  }
+}
