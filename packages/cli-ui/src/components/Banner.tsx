@@ -12,18 +12,19 @@ const KIND_COLOR: Record<BannerKind, string> = {
 
 export interface BannerProps {
   kind: BannerKind
+  width: number
   headline: string
   body?: TokenLine[]
   nextSteps?: TokenLine[]
 }
 
-export const Banner = ({kind, headline, body, nextSteps}: BannerProps) => (
+export const Banner = ({kind, width, headline, body, nextSteps}: BannerProps) => (
   <Box
     flexDirection="column"
     borderStyle="round"
     borderColor={KIND_COLOR[kind]}
     paddingX={1}
-    width={72}
+    width={width}
   >
     <Text bold color={KIND_COLOR[kind]}>
       {kind} — {headline}

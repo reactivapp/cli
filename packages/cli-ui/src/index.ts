@@ -1,4 +1,4 @@
-import {Banner, type BannerKind, type BannerProps} from './components/Banner.js'
+import {Banner, type BannerKind} from './components/Banner.js'
 import {renderOnce, type WritableLike} from './render-once.js'
 import type {TokenLine} from './tokens.js'
 
@@ -10,9 +10,19 @@ export interface BannerOptions {
   nextSteps?: TokenLine[]
 }
 
+const DEFAULT_COLUMNS = 80
+const MIN_BANNER_WIDTH = 4
+const MAX_BANNER_WIDTH = 72
+
+const bannerWidth = ({columns}: WritableLike): number => {
+  const available =
+    typeof columns === 'number' && Number.isInteger(columns) && columns > 0 ? columns : DEFAULT_COLUMNS
+  return Math.max(MIN_BANNER_WIDTH, Math.min(MAX_BANNER_WIDTH, available))
+}
+
 const renderBanner = (kind: BannerKind, options: BannerOptions, stream: WritableLike): void => {
-  const props: BannerProps = {kind, ...options}
-  renderOnce(Banner(props), stream)
+  const width = bannerWidth(stream)
+  renderOnce(Banner({kind, width, ...options}), stream, width)
 }
 
 export const renderInfo = (options: BannerOptions, stream: WritableLike = process.stdout): void =>
