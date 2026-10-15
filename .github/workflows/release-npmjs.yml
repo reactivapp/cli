@@ -1,0 +1,194 @@
+name: Release to npmjs
+
+# Publishes @reactivapp/cli and @reactivapp/cli-ui to the PUBLIC npm registry.
+# Nothing here runs on push. A publish needs all of:
+#   1. a manual dispatch from main with publish=true,
+#   2. the environment-guard job confirming the npmjs environment exists with
+#      required reviewers (GitHub would otherwise create it on the fly with no
+#      protection at all) and that this repository is public, which npm needs
+#      to generate provenance,
+#   3. a required reviewer approving the publish job's npmjs environment.
+# The publish job ships the exact tarballs the inspect job checked (sha256
+# verified). Human setup and the sign-off checklist:
+# docs/public-npm-release-checklist.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to npmjs after inspection (false = inspect only)'
+        type: boolean
+        default: false
+  # pull_request runs are inspect-only: the guard and publish jobs are skipped
+  pull_request:
+    paths:
+      - '.github/workflows/release-npmjs.yml'
+      - '.github/actions/verify/action.yml'
+      - 'scripts/pack-inspect.mjs'
+      - 'scripts/lib/pack-rules.mjs'
+      - 'scripts/pack-allowlist.json'
+      - 'scripts/secret-patterns.ere'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) && 'npmjs-publish' || format('npmjs-inspect-{0}', github.event.pull_request.number || github.run_id) }}
+  cancel-in-progress: false
+
+env:
+  NPMJS_REGISTRY: https://registry.npmjs.org/
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: ./.github/actions/verify
+
+      - name: Pack inspection (files whitelist, tarball secret scan, endpoint allowlist)
+        run: pnpm pack:inspect --out "$RUNNER_TEMP/npmjs-tarballs"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npmjs-tarballs
+          path: ${{ runner.temp }}/npmjs-tarballs
+          if-no-files-found: error
+          retention-days: 7
+
+  environment-guard:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # read the environment's protection rules
+      checks: read # read the CI result for this commit
+    steps:
+      - name: Refuse to publish from anything but main
+        if: ${{ github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::npmjs publishes run only from main (got $GITHUB_REF)"
+          exit 1
+
+      - name: Require a protected npmjs environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! env_json="$(gh api "repos/$GITHUB_REPOSITORY/environments/npmjs")"; then
+            echo "::error::environment 'npmjs' does not exist; create it with required reviewers before publishing (docs/public-npm-release-checklist.md)"
+            exit 1
+          fi
+          reviewers="$(jq '[.protection_rules[]? | select(.type == "required_reviewers") | .reviewers[]?] | length' <<<"$env_json")"
+          if [ "$reviewers" -lt 1 ]; then
+            echo "::error::environment 'npmjs' has no required reviewers; refusing to publish without a human approval gate"
+            exit 1
+          fi
+          echo "npmjs environment protected by $reviewers required reviewer(s)"
+
+      # A pending changeset means the version pull request has not been merged:
+      # publishing now would ship versions that do not carry that change.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Refuse to publish with unconsumed changesets
+        run: |
+          set -euo pipefail
+          pending="$(find .changeset -name '*.md' ! -name 'README.md' | sort)"
+          if [ -n "$pending" ]; then
+            echo "::error::unconsumed changesets; merge the version pull request first:"
+            echo "$pending"
+            exit 1
+          fi
+
+      # The CI workflow must have passed on exactly this commit.
+      - name: Require a green CI run for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=checks" --jq '[.check_runs[] | select(.app.slug == "github-actions")] | sort_by(.completed_at) | last | .conclusion // "missing"')"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI 'checks' job on $GITHUB_SHA is $conclusion, not success"
+            exit 1
+          fi
+
+      # npm cannot generate provenance from a private repository. Failing here,
+      # before anything is published, avoids a run that publishes cli-ui and
+      # then fails on the CLI.
+      - name: Require a public source repository (provenance)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" != "false" ]; then
+            echo "::error::$GITHUB_REPOSITORY is private; npm refuses provenance from private repositories (docs/public-npm-release-checklist.md, section 5)"
+            exit 1
+          fi
+
+  publish:
+    needs: [inspect, environment-guard]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: npmjs
+    permissions:
+      contents: read
+      id-token: write # npm trusted publishing + provenance
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: npmjs-tarballs
+          path: tarballs
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          registry-url: ${{ env.NPMJS_REGISTRY }}
+
+      - name: Verify these are the inspected tarballs
+        working-directory: tarballs
+        run: |
+          set -euo pipefail
+          sha256sum -c SHA256SUMS
+          listed="$(wc -l < SHA256SUMS)"
+          present="$(find . -maxdepth 1 -name '*.tgz' | wc -l)"
+          if [ "$listed" -ne "$present" ]; then
+            echo "::error::$present tarballs present but $listed inspected"
+            exit 1
+          fi
+
+      - name: Require npm with trusted publishing support (11.5.1+)
+        run: |
+          set -euo pipefail
+          version="$(npm --version)"
+          if ! printf '11.5.1\n%s\n' "$version" | sort -V -C; then
+            echo "::error::npm $version is too old for trusted publishing; need 11.5.1 or later"
+            exit 1
+          fi
+
+      # --provenance is explicit so npm refuses to publish, instead of silently
+      # shipping without an attestation, if provenance cannot be generated.
+      - name: Publish with provenance
+        working-directory: tarballs
+        env:
+          # Empty unless a granular token is stored on the npmjs environment;
+          # with trusted publishing configured npm authenticates over OIDC.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          # cli-ui first: the CLI depends on it.
+          for tarball in reactivapp-cli-ui-*.tgz reactivapp-cli-[0-9]*.tgz; do
+            manifest="$(tar -xzOf "$tarball" package/package.json)"
+            name="$(jq -r .name <<<"$manifest")"
+            version="$(jq -r .version <<<"$manifest")"
+            if npm view "$name@$version" version --registry "$NPMJS_REGISTRY" >/dev/null 2>&1; then
+              echo "$name@$version already on npmjs; skipping"
+              continue
+            fi
+            npm publish "$tarball" --access public --provenance --registry "$NPMJS_REGISTRY"
+          done

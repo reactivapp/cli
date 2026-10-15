@@ -1,0 +1,60 @@
+{
+  "name": "@reactivapp/cli",
+  "version": "0.6.0",
+  "description": "Reactiv Plus CLI — scaffold, run, upgrade, and submit customizations for your Reactiv mobile app",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reactivapp/cli.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/reactivapp/cli#readme",
+  "bugs": {
+    "url": "https://github.com/reactivapp/cli/issues"
+  },
+  "bin": {
+    "reactiv": "./bin/run"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "bin/run",
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@oclif/core": "^4.11.0",
+    "@reactivapp/cli-ui": "workspace:*",
+    "typescript": "^5.9.0"
+  },
+  "devDependencies": {
+    "@types/ini": "^4.1.1",
+    "@types/node": "^24.13.3",
+    "eslint": "^9.34.0",
+    "ini": "^5.0.0",
+    "typescript-eslint": "^8.40.0",
+    "vitest": "^3.2.0"
+  },
+  "oclif": {
+    "bin": "reactiv",
+    "dirname": "reactiv",
+    "topicSeparator": " ",
+    "commands": {
+      "strategy": "explicit",
+      "target": "./dist/index.js",
+      "identifier": "COMMANDS"
+    },
+    "topics": {
+      "app": {
+        "description": "Work with a Reactiv Plus app project"
+      }
+    }
+  }
+}

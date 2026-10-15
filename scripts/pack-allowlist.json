@@ -1,0 +1,59 @@
+{
+  "packages": {
+    "packages/cli": {
+      "name": "@reactivapp/cli",
+      "files": [
+        "bin/run",
+        "dist"
+      ],
+      "entries": [
+        "package.json",
+        "bin/run",
+        "dist/**/*.js",
+        "LICENSE",
+        "README.md"
+      ]
+    },
+    "packages/cli-ui": {
+      "name": "@reactivapp/cli-ui",
+      "files": [
+        "dist"
+      ],
+      "entries": [
+        "package.json",
+        "dist/**/*.js",
+        "dist/**/*.d.ts",
+        "LICENSE",
+        "README.md"
+      ]
+    }
+  },
+  "allowedHosts": [
+    {
+      "host": "127.0.0.1",
+      "reason": "reactiv app run probes the local Metro dev server port before starting its own; the CLI also accepts an http REACTIV_VENDING_API_URL override only on this loopback address (mock servers)"
+    },
+    {
+      "host": "[::1]",
+      "reason": "IPv6 loopback literal; the CLI accepts an http REACTIV_VENDING_API_URL override only on loopback addresses (mock servers)"
+    },
+    {
+      "host": "plus-devtools-staging.dev.reactivapp.com",
+      "reason": "default Reactiv token-vending API endpoint (DEFAULT_VENDING_API_URL); the only service the CLI sends the API key to"
+    },
+    {
+      "host": "github.com",
+      "reason": "package.json repository field; npm provenance requires it to match the publishing repository"
+    }
+  ],
+  "allowedLiterals": [
+    {
+      "literal": "/^[a-z0-9-]+\\.d\\.codeartifact\\.[a-z0-9-]+\\.amazonaws\\.com$/",
+      "reason": "host-shape check the CLI applies to every vended registry URL before writing a token, and the pattern its .npmrc conflict rule removes stale credential lines for; a generic AWS service pattern with no account, domain or region"
+    },
+    {
+      "literal": "registry URL outside CodeArtifact",
+      "reason": "the refusal message printed when a vended registry URL fails that host-shape check"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+name: Version packages
+
+# Collects pending changesets on main into a "chore: version packages" pull
+# request. Merging that pull request bumps versions and changelogs; it does not
+# publish. Publishing is the human-approved "Release to npmjs" workflow.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # the changesets action pushes the version branch
+  pull-requests: write # ...and opens or updates the version pull request
+
+concurrency:
+  group: version-packages
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      # Credentials stay on this checkout: the changesets action pushes the
+      # version branch with them. This workflow never runs for pull requests.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Open or update the version pull request
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          title: 'chore: version packages'
+          commit: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

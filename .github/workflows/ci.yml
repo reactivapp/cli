@@ -1,0 +1,48 @@
+name: CI
+
+# Every pull request and every push to main: the shared verification steps
+# (.github/actions/verify), then the scans over the commit range, the
+# changeset check and the tarball inspection. No step holds a credential, so
+# forks get the same run.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          # The history scan and the commit-message scan need every commit.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/verify
+
+      # On a pull request the range is the contributor's own commits, so author
+      # and committer addresses are checked. A push to main carries the forge's
+      # merge or squash identities, so only the message bodies are checked there.
+      - name: Internal reference scan (commit messages)
+        run: pnpm scan:internal --messages "${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.event.after) }}" ${{ github.event_name != 'pull_request' && '--bodies-only' || '' }}
+
+      - name: Internal reference scan (file versions introduced by these commits)
+        run: pnpm scan:internal --history "${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.event.after) }}"
+
+      # A change to a published package must carry a changeset naming it, or
+      # the next release would skip it silently. The version pull request that
+      # consumes changesets is recognised by its shape.
+      - name: Changeset check
+        if: ${{ github.event_name == 'pull_request' }}
+        run: pnpm changeset:check --since "${{ github.event.pull_request.base.sha }}"
+
+      # Fails on any tarball entry outside the files whitelist, a manifest
+      # target missing from the tarball, any secret-pattern match and any
+      # hostname not on the allowed list.
+      - name: Pack inspection
+        run: pnpm pack:inspect
