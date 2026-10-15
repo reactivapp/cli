@@ -12,3 +12,7 @@ updates:
       development:
         dependency-type: development
     open-pull-requests-limit: 5
+    # A major bump of a build or test tool is a decision, not a chore.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']

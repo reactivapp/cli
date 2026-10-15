@@ -80,6 +80,10 @@
     {
       "address": "noreply@anthropic.com",
       "reason": "the Co-Authored-By trailer on commits authored with Claude Code"
+    },
+    {
+      "address": "support@github.com",
+      "reason": "the Signed-off-by address Dependabot puts on its commits"
     }
   ],
   "allowedNumbers": [],
@@ -105,6 +109,30 @@
     {
       "repository": "vadimdemedes/ink",
       "reason": "the renderer cli-ui is built on, linked from its README"
+    },
+    {
+      "repository": "actions/checkout",
+      "reason": "a pinned GitHub Action; Dependabot links its release notes in bump commits"
+    },
+    {
+      "repository": "actions/setup-node",
+      "reason": "a pinned GitHub Action; Dependabot links its release notes in bump commits"
+    },
+    {
+      "repository": "actions/upload-artifact",
+      "reason": "a pinned GitHub Action; Dependabot links its release notes in bump commits"
+    },
+    {
+      "repository": "actions/download-artifact",
+      "reason": "a pinned GitHub Action; Dependabot links its release notes in bump commits"
+    },
+    {
+      "repository": "pnpm/action-setup",
+      "reason": "a pinned GitHub Action; Dependabot links its release notes in bump commits"
+    },
+    {
+      "repository": "changesets/action",
+      "reason": "a pinned GitHub Action; Dependabot links its release notes in bump commits"
     }
   ],
   "allowedMarkerLines": [

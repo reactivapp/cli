@@ -285,6 +285,19 @@ describe('the repository', () => {
     }
   })
 
+  it('accepts a Dependabot bump commit message', () => {
+    const message = [
+      'Bump actions/checkout from 4.4.0 to 7.0.1',
+      '',
+      'Bumps [actions/checkout](https://github.com/actions/checkout) from 4.4.0 to 7.0.1.',
+      '- [Release notes](https://github.com/actions/checkout/releases)',
+      `- [Commits](https://github.com/actions/checkout/compare/${'1'.repeat(40)}...${'3'.repeat(40)})`,
+      '',
+      'Signed-off-by: dependabot[bot] <support@github.com>',
+    ].join('\n')
+    assert.deepEqual(scanContent('commit abc1234', message, {...config, secretPatternFiles: []}, secretPatterns), [])
+  })
+
   it('flags an author or committer address outside the reviewed domains', () => {
     const root = temporaryRepo()
     try {
