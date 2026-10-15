@@ -1,5 +1,17 @@
 # @reactivapp/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- 1d4950f: `reactiv app init` takes the merchant slug and app UUID from your login: the slug names the folder, the package and the default bundle identifier, the app name is free text shown in the app, and `--app-uuid` is optional and refused when it differs from the login. Projects identify themselves by the root package name, with the app name as a fallback for projects scaffolded before this release. `reactiv app submit` also scans for Shopify access tokens, and the Windows refusal now covers every command that uses the login and `reactiv app run`, not only `login`; `reactiv logout` still runs anywhere so stored credentials can be removed.
+
+### Patch Changes
+
+- 1d4950f: The CLI is now developed and published from the public repository at github.com/reactivapp/cli. Both packages point their `repository`, `homepage` and `bugs` fields there and ship a README.
+- Updated dependencies [1d4950f]
+  - @reactivapp/cli-ui@0.1.2
+
 ## 0.6.0
 
 ### Minor Changes

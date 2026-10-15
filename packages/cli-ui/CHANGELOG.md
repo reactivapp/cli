@@ -1,5 +1,11 @@
 # @reactivapp/cli-ui
 
+## 0.1.2
+
+### Patch Changes
+
+- 1d4950f: The CLI is now developed and published from the public repository at github.com/reactivapp/cli. Both packages point their `repository`, `homepage` and `bugs` fields there and ship a README.
+
 ## 0.1.1
 
 ### Patch Changes
