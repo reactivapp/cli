@@ -11,7 +11,7 @@ import {ensureRegistryAuth, type Identity, type RegistryAuth, resolveIdentity} f
 import {assertSameRegistries, BootstrapRegistry, installWithRegistryAuth, skippedInstallScripts} from '../../lib/bootstrap-registry'
 import {APP_DIR, PLATFORM_PACKAGES, readManifest} from '../../lib/layout'
 import {run} from '../../lib/npm'
-import {defaultBundleIdentifier, expandedName, expandTemplate} from '../../lib/scaffold'
+import {defaultBundleIdentifier, expandedName, expandTemplate, isSlug} from '../../lib/scaffold'
 
 const prompt = async (question: string, flagHint: string): Promise<string> => {
   if (!process.stdin.isTTY) {
@@ -75,6 +75,9 @@ export class AppInit extends Command {
     // The merchant the login is provisioned for decides the project identity:
     // its slug is the folder and package name, its UUID the app.
     const appSlug = identity.merchant.slug
+    if (!isSlug(appSlug)) {
+      this.error(`the merchant slug Reactiv provisioned for this key ("${appSlug}") is not a plain lowercase name, so it cannot name a folder or package — contact Reactiv`)
+    }
     const appUuid = identity.merchant.appUuid
     if (flags['app-uuid'] !== undefined && flags['app-uuid'] !== appUuid) {
       this.error(`--app-uuid ${flags['app-uuid']} is not the app your login is provisioned for (${appUuid}) — drop the flag, or log in with that app's key`)

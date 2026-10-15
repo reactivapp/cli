@@ -70,6 +70,20 @@ describe('app init and app run on the library layout', () => {
     expect(result.stdout).toContain('cd acme')
   })
 
+  it('refuses a merchant slug that is not a plain name, before touching the file system', async () => {
+    await mock.close()
+    mock = await startMockVending({
+      'GET /v1/me': () => ({status: 200, body: meResponse({merchant: {...MERCHANT, slug: '../outside'}})}),
+      'POST /v1/tokens': () => ({status: 200, body: tokenResponse({merchant: {...MERCHANT, slug: '../outside'}})}),
+    })
+    env = {...env, REACTIV_VENDING_API_URL: mock.url}
+    const result = await runCli(['app', 'init', '--name', 'Acme', '--path', workDir], {cwd: workDir, env})
+    expect(result.code).not.toBe(0)
+    expect(flat(result.errorText)).toContain('is not a plain lowercase name')
+    expect(existsSync(join(workDir, '..', 'outside'))).toBe(false)
+    expect(mock.requests.filter(request => request.path === '/v1/tokens')).toEqual([])
+  })
+
   it('refuses an --app-uuid that is not the app the login is provisioned for', async () => {
     const result = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
     expect(result.code).not.toBe(0)

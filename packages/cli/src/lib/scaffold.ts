@@ -12,6 +12,12 @@ export interface ScaffoldIdentity {
   reactNativeVersion: string
 }
 
+// A slug is one path component and one package name: lowercase letters,
+// digits and dashes, nothing that could leave a directory.
+export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+export const isSlug = (value: string): boolean => SLUG.test(value)
+
 export const toSlug = (name: string): string =>
   name
     .trim()
