@@ -69,7 +69,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
 
     const init = await step(
       'scaffold: registry lookups through a throwaway user config, then the managed block before npm install',
-      ['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir],
+      ['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir],
       {cwd: workDir},
     )
     expect(init.code).toBe(0)
@@ -118,7 +118,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
   it('heals an E401 during init with one re-mint', async () => {
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
     tokenReplies.push({status: 200, body: tokenResponse()}, {status: 200, body: tokenResponse({token: OTHER_TOKEN})})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir, '--skip-install'], {
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir, '--skip-install'], {
       cwd: workDir,
       env: {...env, FAKE_NPM_E401_ONCE: join(workDir, 'e401-done')},
     })
@@ -130,7 +130,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
 
   it('spends at most one re-mint per init across the platform lookup and the template download', async () => {
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir, '--skip-install'], {
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir, '--skip-install'], {
       cwd: workDir,
       env: {...env, FAKE_NPM_E401_ONCE: join(workDir, 'e401-done'), FAKE_NPM_E401_ONCE_VERB: 'view', FAKE_NPM_E401_ALWAYS_VERB: 'pack'},
     })
@@ -147,7 +147,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
     const moved = TOOLS_REGISTRY_URL.replace('/tools/', '/tools-moved/')
     tokenReplies.push({status: 200, body: tokenResponse()}, {status: 200, body: tokenResponse({toolsRegistryUrl: moved})})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {
       cwd: workDir,
       env: {...env, FAKE_NPM_E401_ONCE: join(workDir, 'e401-done'), FAKE_NPM_E401_ONCE_VERB: verb},
     })
@@ -162,7 +162,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
     const moved = TOOLS_REGISTRY_URL.replace('/tools/', '/tools-moved/')
     tokenReplies.push({status: 200, body: tokenResponse()}, {status: 200, body: tokenResponse({toolsRegistryUrl: moved})})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir, '--skip-install'], {
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir, '--skip-install'], {
       cwd: workDir,
       env: {...env, FAKE_NPM_E401_ONCE: join(workDir, 'e401-done'), FAKE_NPM_E401_ONCE_VERB: 'view'},
     })
@@ -177,7 +177,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     const moved = TOOLS_REGISTRY_URL.replace('/tools/', '/tools-moved/')
     const soon = new Date(Date.now() + 5 * 60 * 1000).toISOString()
     tokenReplies.push({status: 200, body: tokenResponse({expiresAt: soon})}, {status: 200, body: tokenResponse({toolsRegistryUrl: moved})})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
     expect(init.code).not.toBe(0)
     expect(init.errorText).toContain('The Reactiv tools registry changed while setting up the project; nothing was scaffolded from mixed sources. Run `reactiv app init` again.')
     expect(mock.requests.filter(request => request.path === '/v1/tokens')).toHaveLength(2)
@@ -190,7 +190,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     const soon = new Date(Date.now() + 5 * 60 * 1000).toISOString()
     const moved = REGISTRY_URL.replace('submissions-acme/', 'submissions-acme-moved/')
     tokenReplies.push({status: 200, body: tokenResponse({expiresAt: soon})}, {status: 200, body: tokenResponse({registryUrl: moved})})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
     expect(init.code).not.toBe(0)
     expect(init.errorText).toContain('The Reactiv submissions registry changed while setting up the project; nothing was scaffolded from mixed sources.')
     expect(readFileSync(shim.log, 'utf8').split('\n').filter(line => line.startsWith('install '))).toEqual([])
@@ -210,7 +210,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
         }),
       },
     )
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
     expect(init.code).not.toBe(0)
     expect(init.errorText).toContain('The Reactiv tools and submissions registries changed while setting up the project')
   }, 60_000)
@@ -219,7 +219,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
     const project = join(workDir, 'acme')
     mkdirSync(project)
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {
       cwd: workDir,
       env: {...env, FAKE_NPM_E401_ALWAYS_VERB: 'install'},
     })
@@ -237,7 +237,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
     const project = join(workDir, 'acme')
     mkdirSync(project)
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {
       cwd: workDir,
       env: {...env, FAKE_NPM_E401_ALWAYS_VERB: 'install'},
     })
@@ -248,7 +248,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
 
   it('refuses to scaffold for an app UUID the login is not provisioned for, before minting anything', async () => {
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
-    const init = await runCli(['app', 'init', '--name', 'Globex', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
+    const init = await runCli(['app', 'init', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
     expect(init.code).not.toBe(0)
     expect(init.errorText).toContain(`is not the app your login is provisioned for (${MERCHANT.appUuid})`)
     expect(mock.requests.filter(request => request.path === '/v1/tokens')).toEqual([])
@@ -259,7 +259,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     shim = installNpmShim(workDir, buildTemplateTarball(join(workDir, 'bad'), {gitignore: 'node_modules/\n'}))
     env = {...env, ...shim.env}
     await runCli(['login', '--with-token'], {cwd: workDir, env, input: `${API_KEY}\n`})
-    const init = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
+    const init = await runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
     expect(init.code).not.toBe(0)
     expect(init.errorText).toContain("the scaffold's .gitignore does not ignore .npmrc")
     expect(existsSync(join(workDir, 'acme'))).toBe(false)

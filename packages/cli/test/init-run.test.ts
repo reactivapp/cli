@@ -53,20 +53,20 @@ describe('app init and app run on the library layout', () => {
   // oclif wraps long error lines behind a ' ›' gutter; join them back up.
   const flat = (text: string): string => text.replace(/\s*›\s*/g, ' ').replace(/\s+/g, ' ')
 
-  const init = (name = 'Acme') =>
-    runCli(['app', 'init', '--name', name, '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
+  const init = () =>
+    runCli(['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir], {cwd: workDir, env})
 
   const installs = (): string[] =>
     readFileSync(shim.log, 'utf8').split('\n').filter(line => line.startsWith('install '))
 
-  it('takes the folder, package name and app UUID from the login, whatever the app name is', async () => {
-    const result = await runCli(['app', 'init', '--name', 'Acme Shop Deluxe', '--path', workDir], {cwd: workDir, env})
+  it('takes the folder, package name, app name and app UUID from the login, asking nothing', async () => {
+    const result = await runCli(['app', 'init', '--path', workDir], {cwd: workDir, env})
     expect(result.code).toBe(0)
     const project = join(workDir, 'acme')
     expect(JSON.parse(readFileSync(join(project, 'package.json'), 'utf8')).name).toBe('acme')
     const conf = readFileSync(join(project, 'reactiv.conf.js'), 'utf8')
     expect(conf).toContain(`appUuid: '${MERCHANT.appUuid}'`)
-    expect(conf).toContain("appName: 'Acme Shop Deluxe'")
+    expect(conf).toContain("appName: 'acme'")
     expect(result.stdout).toContain('cd acme')
   })
 
@@ -77,7 +77,7 @@ describe('app init and app run on the library layout', () => {
       'POST /v1/tokens': () => ({status: 200, body: tokenResponse({merchant: {...MERCHANT, slug: '../outside'}})}),
     })
     env = {...env, REACTIV_VENDING_API_URL: mock.url}
-    const result = await runCli(['app', 'init', '--name', 'Acme', '--path', workDir], {cwd: workDir, env})
+    const result = await runCli(['app', 'init', '--path', workDir], {cwd: workDir, env})
     expect(result.code).not.toBe(0)
     expect(flat(result.errorText)).toContain('is not a plain lowercase name')
     expect(existsSync(join(workDir, '..', 'outside'))).toBe(false)
@@ -85,7 +85,7 @@ describe('app init and app run on the library layout', () => {
   })
 
   it('refuses an --app-uuid that is not the app the login is provisioned for', async () => {
-    const result = await runCli(['app', 'init', '--name', 'Acme', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
+    const result = await runCli(['app', 'init', '--app-uuid', '11111111-1111-1111-1111-111111111111', '--path', workDir], {cwd: workDir, env})
     expect(result.code).not.toBe(0)
     expect(flat(result.stderr)).toContain('is not the app your login is provisioned for')
     expect(existsSync(join(workDir, 'acme'))).toBe(false)
@@ -117,10 +117,10 @@ describe('app init and app run on the library layout', () => {
   }, 60_000)
 
   it.each([
-    ['React Native', 'react-native', 'the platform already uses'],
-    ['TypeScript', 'typescript', 'the project itself installs'],
-    ['Metro', 'metro', 'the project itself installs'],
-  ])('refuses the app name %s, whose package name would shadow a package', async (name, slug, reason) => {
+    ['react-native', 'the platform already uses'],
+    ['typescript', 'the project itself installs'],
+    ['metro', 'the project itself installs'],
+  ])('refuses the merchant slug %s, whose package name would shadow a package', async (slug, reason) => {
     // The slug comes from the login, so the mock merchant has to carry it.
     await mock.close()
     mock = await startMockVending({
@@ -128,7 +128,7 @@ describe('app init and app run on the library layout', () => {
       'POST /v1/tokens': () => ({status: 200, body: tokenResponse({merchant: {...MERCHANT, slug}})}),
     })
     env = {...env, REACTIV_VENDING_API_URL: mock.url}
-    const result = await init(name)
+    const result = await init()
     expect(result.code).not.toBe(0)
     expect(flat(result.errorText)).toContain(reason)
     expect(existsSync(join(workDir, slug))).toBe(false)

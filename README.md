@@ -29,7 +29,7 @@ reactiv --version
 
 ```bash
 reactiv login                # paste your API key at the hidden prompt
-reactiv app init             # asks for an app name, then installs dependencies
+reactiv app init             # scaffolds a folder named after your merchant and installs dependencies
 cd <your-app-folder>
 reactiv app run ios          # pod install, Metro, build, launch on the booted simulator
 ```

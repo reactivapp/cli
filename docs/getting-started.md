@@ -54,7 +54,7 @@ reactiv app init
 cd <your-app-folder>
 ```
 
-The CLI asks for an app name (the name shown in the app; any text without quotes, backslashes or newlines), takes the app UUID and merchant slug from your login, resolves the current platform version, downloads the app template and installs dependencies. The folder is named after the merchant slug, for example `acme`, and it has two parts:
+The CLI asks nothing: it takes the merchant slug and app UUID from your login, resolves the current platform version, downloads the app template and installs dependencies. The folder, the package and the app name in the shell are all the merchant slug, for example `acme`. The project has two parts:
 
 - **The root is your library.** This is what you submit. Your code lives in `src/`, and `package.json` declares the packages you add.
 - **`app/` is the runnable shell.** It wraps your library in a real app so you can run it. It is never submitted, and the platform version it runs is pinned for you.

@@ -84,6 +84,10 @@
     {
       "address": "support@github.com",
       "reason": "the Signed-off-by address Dependabot puts on its commits"
+    },
+    {
+      "address": "noreply@github.com",
+      "reason": "the committer GitHub puts on commits it creates in the web UI, such as updating a pull request branch from main or applying a review suggestion"
     }
   ],
   "allowedNumbers": [],
@@ -180,6 +184,10 @@
     {
       "domain": "users.noreply.github.com",
       "reason": "GitHub no-reply identities"
+    },
+    {
+      "domain": "reactiv.ai",
+      "reason": "maintainers' GitHub account addresses, used as the author on commits GitHub creates in the web UI"
     }
   ]
 }

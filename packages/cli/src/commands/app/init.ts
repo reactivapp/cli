@@ -3,7 +3,6 @@ import {execFileSync} from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import * as readline from 'node:readline/promises'
 
 import {createAuthContext, reportAuthError} from '../../lib/auth/context'
 import {gitIgnoreState, gitProbeEnv, installRoots} from '../../lib/auth/npmrc'
@@ -12,16 +11,6 @@ import {assertSameRegistries, BootstrapRegistry, installWithRegistryAuth, skippe
 import {APP_DIR, PLATFORM_PACKAGES, readManifest} from '../../lib/layout'
 import {run} from '../../lib/npm'
 import {defaultBundleIdentifier, expandedName, expandTemplate, isSlug} from '../../lib/scaffold'
-
-const prompt = async (question: string, flagHint: string): Promise<string> => {
-  if (!process.stdin.isTTY) {
-    throw new Error(`missing required value — pass ${flagHint} (interactive prompt needs a TTY)`)
-  }
-  const rl = readline.createInterface({input: process.stdin, output: process.stdout})
-  const answer = await rl.question(question)
-  rl.close()
-  return answer.trim()
-}
 
 const assertNpmrcIgnored = (targetDir: string): void => {
   for (const root of installRoots(targetDir)) {
@@ -45,7 +34,6 @@ export class AppInit extends Command {
     'Scaffold a new Reactiv Plus app project from @reactivapp/app-template for the merchant you are logged in as (platform version stamped from the registry)'
 
   static override flags = {
-    name: Flags.string({description: 'app name shown in the app (any text without quotes, backslashes or newlines)'}),
     'app-uuid': Flags.string({description: 'Reactiv app UUID; defaults to the app your login is provisioned for and is refused when it differs'}),
     path: Flags.string({description: 'parent directory to scaffold into', default: '.'}),
     'package-manager': Flags.string({description: 'package manager for the project', options: ['npm'], default: 'npm'}),
@@ -57,14 +45,6 @@ export class AppInit extends Command {
     const {renderSuccess, renderInfo} = await import('@reactivapp/cli-ui')
     const {flags} = await this.parse(AppInit)
 
-    const appName = flags.name ?? (await prompt('App name: ', '--name'))
-    if (!appName) this.error('app name is required (use --name)')
-    // The name is stamped into JSON and JS files — quotes/backslashes would
-    // corrupt the generated configs.
-    if (/["'\\\n]/.test(appName)) {
-      this.error('app name must not contain quotes, backslashes, or newlines')
-    }
-
     const ctx = createAuthContext(this)
     let identity: Identity
     try {
@@ -73,7 +53,7 @@ export class AppInit extends Command {
       return reportAuthError(this, error)
     }
     // The merchant the login is provisioned for decides the project identity:
-    // its slug is the folder and package name, its UUID the app.
+    // its slug is the folder, package and app name, its UUID the app.
     const appSlug = identity.merchant.slug
     if (!isSlug(appSlug)) {
       this.error(`the merchant slug Reactiv provisioned for this key ("${appSlug}") is not a plain lowercase name, so it cannot name a folder or package — contact Reactiv`)
@@ -133,7 +113,7 @@ export class AppInit extends Command {
       try {
         for (const name of fs.readdirSync(templateDir)) createdEntries.add(expandedName(name))
         fileCount = expandTemplate(templateDir, targetDir, {
-          appName,
+          appName: appSlug,
           appSlug,
           appUuid,
           bundleIdentifier: flags['bundle-id'] ?? defaultBundleIdentifier(appSlug),
@@ -203,7 +183,7 @@ export class AppInit extends Command {
     }
 
     renderSuccess({
-      headline: `Scaffolded ${appName}`,
+      headline: `Scaffolded ${appSlug}`,
       body: [
         `${fileCount} files expanded to ${targetDir}`,
         `library: package.json + src/ (what gets submitted); runnable shell: ${APP_DIR}/`,

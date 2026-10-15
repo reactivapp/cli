@@ -74,7 +74,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     publish(A)
     transcript.length = 0
     project = workDir
-    const init = await step(`scaffold at ${A}`, ['app', 'init', '--name', 'Acme', '--app-uuid', MERCHANT.appUuid, '--path', workDir])
+    const init = await step(`scaffold at ${A}`, ['app', 'init', '--app-uuid', MERCHANT.appUuid, '--path', workDir])
     expect(init.code).toBe(0)
     project = join(workDir, 'acme')
     clearNpmLog()
