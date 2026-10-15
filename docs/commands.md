@@ -42,12 +42,11 @@ Prints the merchant and app UUID, the key label and holder, the key's expiry, th
 Scaffolds a new project from the current `@reactivapp/app-template`.
 
 ```
-reactiv app init [--name <app name>] [--path <dir>] [--bundle-id <id>] [--app-uuid <uuid>] [--skip-install] [--package-manager npm]
+reactiv app init [--path <dir>] [--bundle-id <id>] [--app-uuid <uuid>] [--skip-install] [--package-manager npm]
 ```
 
 | Flag | Effect |
 | --- | --- |
-| `--name` | The app name shown in the app. Prompted for when omitted. Any text except quotes, backslashes and newlines; it is not used for file or package names. |
 | `--app-uuid` | Optional. The app UUID; defaults to the app your login is provisioned for (`reactiv whoami` shows it) and is refused when it differs. |
 | `--path` | Parent directory to scaffold into. Default: the current directory. |
 | `--bundle-id` | iOS bundle identifier. Default: `com.reactiv.<slug without dashes>`. |
@@ -56,7 +55,7 @@ reactiv app init [--name <app name>] [--path <dir>] [--bundle-id <id>] [--app-uu
 
 What happens:
 
-1. Your login decides the project identity: the merchant slug Reactiv provisioned for your key (lowercase letters, digits and dashes) becomes the folder name, the root package name and the default bundle identifier; the app UUID comes from the same login.
+1. Your login decides the project identity, and nothing is asked: the merchant slug Reactiv provisioned for your key (lowercase letters, digits and dashes) becomes the folder name, the root package name, the app name in `reactiv.conf.js` and the shell, and the default bundle identifier; the app UUID comes from the same login.
 2. The current platform version and its pinned `react` and `react-native` versions are read from the registry, and the template is downloaded with npm so the transcript shows where it came from.
 3. The template is expanded into `<path>/<slug>`, which must not exist or must be empty. A `git init` follows, and the CLI refuses to continue if the scaffold's `.gitignore` does not ignore `.npmrc`.
 4. Dependencies are installed in the root and in `app/` with install scripts turned off. The CLI tells you which packages declared one so you can run `npm rebuild` in `app/` if the native build needs it.
