@@ -122,6 +122,12 @@ export class AppInit extends Command {
           reactNativeVersion,
         })
 
+        const libraryManifest = fs.existsSync(path.join(targetDir, 'package.json')) ? readManifest(path.join(targetDir, 'package.json')) : {}
+        if (!Array.isArray(libraryManifest.workspaces) || !libraryManifest.workspaces.includes(APP_DIR)) {
+          throw new Error(
+            `the downloaded @reactivapp/app-template does not list ${APP_DIR}/ as an npm workspace — it predates the single-install layout this CLI expects; ask Reactiv to publish the current template`,
+          )
+        }
         if (!fs.existsSync(path.join(targetDir, APP_DIR, 'package.json')) || !fs.existsSync(path.join(targetDir, 'src'))) {
           throw new Error(
             `the downloaded @reactivapp/app-template has no ${APP_DIR}/ shell or src/ library — it predates the library layout this CLI expects; ask Reactiv to publish the current template`,
@@ -144,16 +150,14 @@ export class AppInit extends Command {
         assertSameRegistries(registry, await ensureRegistryAuth(ctx, targetDir))
 
         if (!flags['skip-install']) {
-          this.log('Installing library dependencies (npm, root)…')
+          this.log(`Installing dependencies (npm, one install for the library and ${APP_DIR}/)…`)
           await installWithRegistryAuth(ctx, registry, targetDir, targetDir)
           if (!fs.existsSync(path.join(targetDir, 'node_modules', '@reactivapp', 'mobile', 'package.json'))) {
-            this.warn(`the root install did not add @reactivapp/mobile — editor types and \`npm run typecheck\` need it; add it with \`npm install --save-dev --save-exact @reactivapp/mobile@${platformVersion} react@${reactVersion} react-native@${reactNativeVersion}\`; the app still runs`)
+            throw new Error(`the install did not place @reactivapp/mobile@${platformVersion} in node_modules — ${APP_DIR}/package.json must depend on it and the root package.json must list ${APP_DIR} in workspaces`)
           }
-          this.log(`Installing app shell dependencies (npm, ${APP_DIR}/)…`)
-          await installWithRegistryAuth(ctx, registry, targetDir, path.join(targetDir, APP_DIR))
-          const skipped = skippedInstallScripts(path.join(targetDir, APP_DIR))
+          const skipped = skippedInstallScripts(targetDir)
           if (skipped.length > 0) {
-            this.warn(`install scripts were not run in ${APP_DIR}/ for: ${skipped.join(', ')} — run \`npm rebuild\` in ${APP_DIR}/ if the app fails to build`)
+            this.warn(`install scripts were not run for: ${skipped.join(', ')} — run \`npm rebuild\` at the project root if the app fails to build`)
           }
         }
 

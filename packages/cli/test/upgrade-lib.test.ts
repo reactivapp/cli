@@ -146,12 +146,12 @@ describe('findDelegationSteps', () => {
 })
 
 describe('skippedInstallScripts', () => {
-  it('treats an unreadable app/package-lock.json as no lockfile', () => {
+  it('treats an unreadable package-lock.json as no lockfile', () => {
     const appDir = mkdtempSync(join(tmpdir(), 'skipped-'))
     try {
       writeFileSync(join(appDir, 'package.json'), JSON.stringify({scripts: {postinstall: 'x'}}))
       writeFileSync(join(appDir, 'package-lock.json'), '{"packages": ')
-      expect(skippedInstallScripts(appDir)).toEqual(['app/package.json postinstall'])
+      expect(skippedInstallScripts(appDir)).toEqual(['package.json postinstall'])
     } finally {
       rmSync(appDir, {recursive: true, force: true})
     }

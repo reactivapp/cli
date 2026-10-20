@@ -32,23 +32,23 @@ Add `.npmrc` (no leading slash) to `.gitignore` so both the root and `app/` copi
 
 ## `package.json dependencies must be exact versions`
 
-Reinstall the package with `--save-exact`, at the root and in `app/`.
+Reinstall the package with `--save-exact` at the project root.
 
 ## `src/ imports packages that package.json does not declare`
 
-Install the named package at the root and in `app/`. The message shows the exact command.
+Install the named package at the project root. The message shows the exact command.
 
 ## `package.json dependencies include packages the platform provides`
 
 Remove the named package from `dependencies`; it is supplied by the platform. The message tells you where it belongs.
 
-## `app/package.json dependencies are out of sync with the library's package.json`
+## `app/package.json declares packages that belong to the library's package.json`
 
-Make both manifests declare the same packages at the same versions, then run `npm install` in `app/`. The message lists each difference.
+Declare your packages in the root `package.json` only (`npm install --save-exact <name>@<version>` at the project root) and remove them from `app/package.json`; the shell pins nothing but the platform. The message names each one.
 
-## `app/node_modules does not hold the declared versions`
+## `node_modules does not hold the declared versions`
 
-Run `npm install` in `app/`.
+Run `npm install` at the project root.
 
 ## `entry point must export CustomCompositions and registerCustomComponents`
 

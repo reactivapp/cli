@@ -5,14 +5,15 @@
 ```
 <your-app>/
 ├── reactiv.conf.js        app identity: appName and appUuid
-├── package.json           the library: what you submit
+├── package.json           the library: what you submit; lists app/ as an npm workspace
+├── package-lock.json      one lockfile for the library and the shell
+├── node_modules/          one shared install
 ├── src/
 │   └── index.ts           must export CustomCompositions and registerCustomComponents
 ├── tsconfig.json
 ├── .npmrc                 generated, git-ignored, never committed
 └── app/                   the runnable shell, never submitted
-    ├── package.json       mirrors the library's dependencies and pins the platform
-    ├── package-lock.json
+    ├── package.json       pins the platform; declares nothing else
     ├── ios/
     ├── metro.config.js
     ├── babel.config.js
@@ -28,13 +29,13 @@ The root `package.json` and `src/` are the submission. Its `name` is the merchan
 - `files`: `["src"]`.
 - `dependencies`: packages your code imports, each with an exact version.
 - `peerDependencies`: `@reactivapp/mobile`, `react` and `react-native` at the exact versions the app shell runs, plus any package the platform supplies that your code imports.
-- `devDependencies`: the same three at the same versions, so the root install has the platform for `npm run typecheck` and your editor, plus local tooling. The CLI installs with `--legacy-peer-deps` and writes `legacy-peer-deps=true` into the project's managed `.npmrc` block, so npm never adds peers on its own, from the CLI or from your own `npm install`: a package your code needs is declared, never inherited.
+- `workspaces`: `["app"]`, so one `npm install` at the root installs the library's dependencies and the shell's platform into one `node_modules`. The CLI installs with `--legacy-peer-deps` and writes `legacy-peer-deps=true` into the project's managed `.npmrc` block, so npm never adds peers on its own, from the CLI or from your own `npm install`: a package your code needs is declared, never inherited.
 
 `src/index.ts` must export `CustomCompositions` and `registerCustomComponents` as named values. Type-only and default exports do not count. Everything your code imports by relative path must live under `src/`.
 
 ## The app shell (`app/`)
 
-`app/` wraps the library in a real React Native app so you can run it. It depends on `@reactivapp/mobile`, the Reactiv platform package, at a pinned version, and delegates its Metro, Babel and React Native configuration to the platform's toolchain. It is never submitted. Its `package.json` must list the same dependencies as the library at the same versions, because native modules autolink from there.
+`app/` wraps the library in a real React Native app so you can run it. It is an npm workspace of the root: its `package.json` depends on `@reactivapp/mobile`, the Reactiv platform package, at a pinned version, and on nothing else; the root install hoists the platform and your library's dependencies into one `node_modules`, and the shell delegates its Metro, Babel and React Native configuration to the platform's toolchain. It is never submitted.
 
 After the first install, the toolchain files are yours. `reactiv app upgrade` tells you when the current template's versions differ.
 
@@ -43,9 +44,9 @@ After the first install, the toolchain files are yours. `reactiv app upgrade` te
 The checks run in this order. Steps 1 to 8 finish before the CLI contacts Reactiv; it then obtains a registry token (at which point the signed-in key must belong to this app's UUID and slug) and the next draft version, and steps 9 and 10 run on the staged copy before the publish.
 
 1. **Project identity.** `reactiv.conf.js` exports `appUuid` and `appName`, and the name produces a usable slug.
-2. **Layout.** `app/package.json` exists and the root manifest has a `files: ["src"]` entry and an entry point inside `src/`.
-3. **Dependencies in sync.** The library's `dependencies` appear in `app/package.json` at the same versions; packages the platform provides are not in the library's `dependencies`; the platform trio is pinned identically in both; `app/node_modules` holds what the manifests declare, without duplicate copies.
-4. **Submittable dependencies.** Every dependency is an exact registry version (no ranges, tags, URLs, git links or local paths); nothing in the `@reactivapp` or `@reactiv-submissions` scopes; no `overrides` in `app/package.json`; `app/package-lock.json` exists and records the installed platform version.
+2. **Layout.** The root manifest lists `app` in `workspaces` and has a `files: ["src"]` entry and an entry point inside `src/`; `app/package.json` exists.
+3. **Dependencies in sync.** `app/package.json` declares only the platform trio, never a library dependency; packages the platform provides are not in the library's `dependencies`; the platform trio is pinned identically in both; `node_modules` holds what the manifests declare, without duplicate copies.
+4. **Submittable dependencies.** Every dependency is an exact registry version (no ranges, tags, URLs, git links or local paths); nothing in the `@reactivapp` or `@reactiv-submissions` scopes; no `overrides` in either manifest; `package-lock.json` exists and records the installed platform version.
 5. **Native integration.** No dependency needs changes to the native project: a short list of known libraries with app-level setup is refused, and the CocoaPods podspecs of your direct dependencies are checked for build hooks. Gradle changes, Info.plist usage descriptions and entitlements are not detected here and are rejected at Reactiv's review instead.
 6. **Forbidden content.** No `node_modules`, `build`, `dist`, `Pods`, `.git` or `DerivedData` under `src/`, and `src/` is not a symlink.
 7. **Imports.** Every bare import in `src/` names a declared dependency or a platform package by its public entry, and every relative import stays inside `src/`. Node built-ins, package.json `imports` aliases, absolute paths and computed import specifiers are refused. Whether a relative import's target exists is not checked here; a missing file fails your typecheck and Reactiv's build.

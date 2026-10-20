@@ -148,9 +148,12 @@ export const installWithRegistryAuth = async (
   if (result.status !== 0) throw new Error(`npm install in ${path.relative(projectRoot, cwd) || '.'} exited with ${result.status}`)
 }
 
-export const skippedInstallScripts = (appDir: string): string[] => {
-  const appScripts = (readManifest(path.join(appDir, 'package.json')).scripts ?? {}) as Record<string, unknown>
-  const lockPath = path.join(appDir, 'package-lock.json')
+export const skippedInstallScripts = (projectRoot: string): string[] => {
+  const scriptsOf = (manifestPath: string): Record<string, unknown> =>
+    fs.existsSync(manifestPath) ? ((readManifest(manifestPath).scripts ?? {}) as Record<string, unknown>) : {}
+  const rootScripts = scriptsOf(path.join(projectRoot, 'package.json'))
+  const appScripts = scriptsOf(path.join(projectRoot, APP_DIR, 'package.json'))
+  const lockPath = path.join(projectRoot, 'package-lock.json')
   let lockPackages: Record<string, {hasInstallScript?: boolean}> = {}
   try {
     if (fs.existsSync(lockPath)) lockPackages = (readManifest(lockPath).packages ?? {}) as Record<string, {hasInstallScript?: boolean}>
@@ -158,6 +161,7 @@ export const skippedInstallScripts = (appDir: string): string[] => {
     lockPackages = {}
   }
   return [
+    ...['preinstall', 'install', 'postinstall', 'prepare'].filter(name => Object.hasOwn(rootScripts, name)).map(name => `package.json ${name}`),
     ...['preinstall', 'install', 'postinstall', 'prepare'].filter(name => Object.hasOwn(appScripts, name)).map(name => `${APP_DIR}/package.json ${name}`),
     ...Object.entries(lockPackages).filter(([, entry]) => entry.hasInstallScript).map(([key]) => key.replace(/^.*node_modules\//, '')),
   ]

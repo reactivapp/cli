@@ -106,12 +106,12 @@ export const findDependencyDrift = (
   const libraryDeps = dependenciesOf(library, 'package.json')
   const appDeps = dependenciesOf(app, `${APP_DIR}/package.json`)
   const drift: DependencyDrift[] = []
-  for (const [name, spec] of Object.entries(libraryDeps)) {
-    if (PLATFORM_PACKAGES.includes(name)) continue
-    if (appDeps[name] !== spec || !has(appDeps, name)) drift.push({name, library: spec, app: has(appDeps, name) ? appDeps[name] : undefined})
-  }
   for (const [name, spec] of Object.entries(appDeps)) {
-    if (PLATFORM_PACKAGES.includes(name) || has(libraryDeps, name)) continue
+    if (PLATFORM_PACKAGES.includes(name)) continue
+    if (has(libraryDeps, name)) {
+      drift.push({name, library: libraryDeps[name], app: spec})
+      continue
+    }
     if (platform.peers.has(name) && !platform.shipped.has(name)) {
       if (!has(libraryPeers, name)) drift.push({name, app: spec, platformPeer: true})
       continue
@@ -124,23 +124,20 @@ export const findDependencyDrift = (
 export const formatDependencyDrift = (drift: DependencyDrift[]): string => {
   const lines = drift.map(({name, library, app, platformShipped, platformPeer, installed}) => {
     if (platformPeer) {
-      return `  ${name}: the platform expects the app to provide it — run \`npm install\` in ${APP_DIR}/, keep it in ${APP_DIR}/package.json and add its installed exact version ("${installed ?? app}" now) to package.json peerDependencies`
+      return `  ${name}: the platform expects the app to provide it — keep it in ${APP_DIR}/package.json and add its installed exact version ("${installed ?? app}" now) to package.json peerDependencies`
     }
     if (platformShipped) {
       return `  ${name}: the platform already ships it — remove it from ${APP_DIR}/package.json (declare it in package.json peerDependencies if src/ imports it)`
     }
     if (library === undefined) {
-      return `  ${name}: in ${APP_DIR}/package.json only — add "${name}": "${app}" to the root package.json dependencies (it ships with the submission), or remove it from ${APP_DIR}/package.json`
+      return `  ${name}: in ${APP_DIR}/package.json only — run \`npm install --save-exact ${name}@${app}\` at the project root so it ships with the submission, and remove it from ${APP_DIR}/package.json`
     }
-    if (app === undefined) {
-      return `  ${name}: missing from ${APP_DIR}/package.json — add "${name}": "${library}" to its dependencies`
-    }
-    return `  ${name}: "${library}" in package.json but "${app}" in ${APP_DIR}/package.json — set ${APP_DIR}/package.json to "${library}"`
+    return `  ${name}: already declared in package.json ("${library}") — remove it from ${APP_DIR}/package.json; the workspace installs it once from the root`
   })
   return [
-    `${APP_DIR}/package.json dependencies are out of sync with the library's package.json:`,
+    `${APP_DIR}/package.json declares packages that belong to the library's package.json (the shell pins only the platform):`,
     ...lines,
-    `then run \`npm install\` in ${APP_DIR}/ (native modules only autolink from ${APP_DIR}/package.json)`,
+    'then run `npm install` at the project root',
   ].join('\n')
 }
 
@@ -170,56 +167,38 @@ export const formatPeerDrift = (drift: PeerDrift[]): string =>
     }),
   ].join('\n')
 
-export interface DevTrioDrift {
-  name: string
-  peer: string
-  dev: string
-}
-
-export const findDevTrioDrift = (library: Manifest): DevTrioDrift[] => {
-  const peers = peersOf(library)
-  const dev = specsOf(library.devDependencies, 'package.json "devDependencies"')
-  return PLATFORM_PACKAGES.filter(name => has(dev, name) && has(peers, name) && dev[name] !== peers[name]).map(name => ({name, peer: peers[name], dev: dev[name]}))
-}
-
-export const formatDevTrioDrift = (drift: DevTrioDrift[]): string =>
-  [
-    'package.json devDependencies do not match its peerDependencies, so the typecheck runs against a different platform than the app:',
-    ...drift.map(({name, peer, dev}) => `  ${name}: devDependencies "${dev}" but peerDependencies "${peer}" — set devDependencies.${name} to "${peer}" and run \`npm install\` at the project root`),
-  ].join('\n')
-
 const readPlatformManifest = (layout: ProjectLayout): Manifest => {
-  const manifestPath = path.join(layout.appDir, 'node_modules', '@reactivapp', 'mobile', 'package.json')
+  const manifestPath = path.join(layout.root, 'node_modules', '@reactivapp', 'mobile', 'package.json')
   if (!fs.existsSync(manifestPath)) {
-    throw new Error(`@reactivapp/mobile is not installed in ${APP_DIR}/ — run \`npm install\` in ${APP_DIR}/`)
+    throw new Error(`@reactivapp/mobile is not installed — run \`npm install\` at the project root`)
   }
   return readManifest(manifestPath)
 }
 
 const readPlatformAliases = (layout: ProjectLayout): string[] => {
-  const file = path.join(layout.appDir, 'node_modules', '@reactivapp', 'mobile', 'toolchain', 'aliases.json')
+  const file = path.join(layout.root, 'node_modules', '@reactivapp', 'mobile', 'toolchain', 'aliases.json')
   let raw: string
   try {
     raw = fs.readFileSync(file, 'utf8')
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code
     if (code === 'ENOENT') return []
-    throw new Error(`${file} could not be read (${code ?? 'unknown error'}) — reinstall @reactivapp/mobile in ${APP_DIR}/`)
+    throw new Error(`${file} could not be read (${code ?? 'unknown error'}) — reinstall with \`npm install\` at the project root`)
   }
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    throw new Error(`${file} is not valid JSON — reinstall @reactivapp/mobile in ${APP_DIR}/`)
+    throw new Error(`${file} is not valid JSON — reinstall with \`npm install\` at the project root`)
   }
   const aliases = (parsed as {libAliases?: unknown} | null)?.libAliases
   if (typeof aliases !== 'object' || aliases === null || Array.isArray(aliases)) {
-    throw new Error(`${file} has no "libAliases" object — reinstall @reactivapp/mobile in ${APP_DIR}/`)
+    throw new Error(`${file} has no "libAliases" object — reinstall with \`npm install\` at the project root`)
   }
   const names = Object.keys(aliases)
   const malformed = names.filter(name => !/^@[a-z0-9-]+$/.test(name))
   if (malformed.length > 0) {
-    throw new Error(`${file} lists alias names that are not scope-shaped (${malformed.join(', ')}) — reinstall @reactivapp/mobile in ${APP_DIR}/`)
+    throw new Error(`${file} lists alias names that are not scope-shaped (${malformed.join(', ')}) — reinstall with \`npm install\` at the project root`)
   }
   return names
 }
@@ -246,16 +225,26 @@ const installedVersion = (manifestPath: string): string | undefined => {
   if (!fs.existsSync(manifestPath)) return undefined
   const {version} = readManifest(manifestPath)
   if (typeof version !== 'string' || version === '') {
-    throw new Error(`${manifestPath} has no version — the install is damaged; run \`npm install\` in ${APP_DIR}/`)
+    throw new Error(`${manifestPath} has no version — the install is damaged; run \`npm install\` at the project root`)
   }
   return version
 }
 
 const nestedPlatformCopy = (layout: ProjectLayout, name: string): string =>
-  path.join(layout.appDir, 'node_modules', '@reactivapp', 'mobile', 'node_modules', name, 'package.json')
+  path.join(layout.root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', name, 'package.json')
+
+export const assertWorkspaceLayout = (library: Manifest): void => {
+  const workspaces = library.workspaces
+  if (!Array.isArray(workspaces) || !workspaces.includes(APP_DIR)) {
+    throw new Error(
+      `package.json does not list "${APP_DIR}" in workspaces — this project was scaffolded before the single-install layout; run \`reactiv app init\` again and move src/ into the new project`,
+    )
+  }
+}
 
 export const assertDependenciesInSync = (layout: ProjectLayout): void => {
   const library = readManifest(path.join(layout.root, 'package.json'))
+  assertWorkspaceLayout(library)
   const app = readManifest(path.join(layout.appDir, 'package.json'))
   const libraryDeps = dependenciesOf(library, 'package.json')
   const platform = readPlatformManifest(layout)
@@ -282,7 +271,7 @@ export const assertDependenciesInSync = (layout: ProjectLayout): void => {
     )
   }
   const drift = findDependencyDrift(library, app, {shipped: shippedByPlatform, peers: supplied}).map(entry =>
-    entry.platformPeer ? {...entry, installed: installedVersion(path.join(layout.appDir, 'node_modules', entry.name, 'package.json'))} : entry,
+    entry.platformPeer ? {...entry, installed: installedVersion(path.join(layout.root, 'node_modules', entry.name, 'package.json'))} : entry,
   )
   if (drift.length > 0) throw new Error(formatDependencyDrift(drift))
   const unlistedPeers = Object.entries(peersOf(library)).filter(
@@ -293,40 +282,38 @@ export const assertDependenciesInSync = (layout: ProjectLayout): void => {
       [
         `${APP_DIR}/package.json must list the peers the app provides (native modules only autolink from there):`,
         ...unlistedPeers.map(([name, spec]) => `  ${name}: add "${name}": "${spec}" to ${APP_DIR}/package.json dependencies`),
-        `then run \`npm install\` in ${APP_DIR}/`,
+        `then run \`npm install\` at the project root`,
       ].join('\n'),
     )
   }
   const peerDrift = findPeerDrift(library, app)
   if (peerDrift.length > 0) throw new Error(formatPeerDrift(peerDrift))
-  const devTrioDrift = findDevTrioDrift(library)
-  if (devTrioDrift.length > 0) throw new Error(formatDevTrioDrift(devTrioDrift))
   const nestedFixes = Object.entries(libraryDeps).flatMap(([name, spec]) => {
     const nested = installedVersion(nestedPlatformCopy(layout, name))
     if (nested === undefined) return []
-    const hoisted = installedVersion(path.join(layout.appDir, 'node_modules', name, 'package.json'))
-    if (hoisted === nested) return [`${name}: both copies are ${nested} — run \`npm dedupe\` in ${APP_DIR}/ so one copy remains`]
-    if (nested === spec) return [`${name}: run \`npm install\` and then \`npm dedupe\` in ${APP_DIR}/ so one ${nested} copy remains`]
-    return [`${name}: the platform uses ${nested} — pin package.json and ${APP_DIR}/package.json to "${nested}" (now "${spec}"), then run \`npm install\` and \`npm dedupe\` in ${APP_DIR}/`]
+    const hoisted = installedVersion(path.join(layout.root, 'node_modules', name, 'package.json'))
+    if (hoisted === nested) return [`${name}: both copies are ${nested} — run \`npm dedupe\` at the project root so one copy remains`]
+    if (nested === spec) return [`${name}: run \`npm install\` and then \`npm dedupe\` at the project root so one ${nested} copy remains`]
+    return [`${name}: the platform uses ${nested} — pin package.json to "${nested}" (now "${spec}"), then run \`npm install\` and \`npm dedupe\` at the project root`]
   })
   if (nestedFixes.length > 0) {
     throw new Error(
-      `the platform keeps its own copy under ${APP_DIR}/node_modules/@reactivapp/mobile/node_modules, so two copies would be bundled:\n${nestedFixes.map(line => `  ${line}`).join('\n')}`,
+      `the platform keeps its own copy under node_modules/@reactivapp/mobile/node_modules, so two copies would be bundled:\n${nestedFixes.map(line => `  ${line}`).join('\n')}`,
     )
   }
   const appDeps = appDepsOfShell
   const staleTrio = PLATFORM_PACKAGES.filter(name => {
-    const version = installedVersion(path.join(layout.appDir, 'node_modules', name, 'package.json'))
+    const version = installedVersion(path.join(layout.root, 'node_modules', name, 'package.json'))
     return EXACT_VERSION.test(appDeps[name]) && version !== undefined && version !== appDeps[name]
   })
   if (staleTrio.length > 0) {
-    throw new Error(`${APP_DIR}/node_modules does not hold the ${staleTrio.map(name => `${name}@${appDeps[name]}`).join(', ')} that ${APP_DIR}/package.json declares — run \`npm install\` in ${APP_DIR}/`)
+    throw new Error(`node_modules does not hold the ${staleTrio.map(name => `${name}@${appDeps[name]}`).join(', ')} that ${APP_DIR}/package.json declares — run \`npm install\` at the project root`)
   }
   const notInstalled = [...PLATFORM_PACKAGES.filter(name => name !== '@reactivapp/mobile'), ...Object.keys(libraryDeps)].filter(
-    name => !fs.existsSync(path.join(layout.appDir, 'node_modules', name, 'package.json')),
+    name => !fs.existsSync(path.join(layout.root, 'node_modules', name, 'package.json')),
   )
   if (notInstalled.length > 0) {
-    throw new Error(`${notInstalled.join(', ')} ${plural(notInstalled, 'is', 'are')} declared but not installed in ${APP_DIR}/ — run \`npm install\` in ${APP_DIR}/`)
+    throw new Error(`${notInstalled.join(', ')} ${plural(notInstalled, 'is', 'are')} declared but not installed — run \`npm install\` at the project root`)
   }
 }
 
@@ -350,19 +337,21 @@ export const assertSubmittableDependencies = (layout: ProjectLayout): void => {
   const unpinned = Object.entries(libraryDeps).filter(([, spec]) => !EXACT_VERSION.test(spec))
   if (unpinned.length > 0) {
     throw new Error(
-      `package.json dependencies must be exact versions (review approves exactly what installs) — pin ${unpinned.map(([name, spec]) => `${name} (now "${spec}")`).join(', ')} in package.json and ${APP_DIR}/package.json, e.g. \`npm install --save-exact <name>@<version>\` in both`,
+      `package.json dependencies must be exact versions (review approves exactly what installs) — pin ${unpinned.map(([name, spec]) => `${name} (now "${spec}")`).join(', ')} in package.json, e.g. \`npm install --save-exact <name>@<version>\` at the project root`,
     )
   }
   const app = readManifest(path.join(layout.appDir, 'package.json'))
-  if (app.overrides !== undefined) {
-    throw new Error(`${APP_DIR}/package.json "overrides" cannot be submitted alongside — the merchant build installs the library's declared versions only; remove the overrides and test again`)
+  for (const [label, manifest] of [['package.json', library], [`${APP_DIR}/package.json`, app]] as const) {
+    if (manifest.overrides !== undefined) {
+      throw new Error(`${label} "overrides" cannot be submitted alongside — the merchant build installs the library's declared versions only; remove the overrides and test again`)
+    }
   }
   const stale = Object.entries(libraryDeps).filter(([name, spec]) => {
-    const manifestPath = path.join(layout.appDir, 'node_modules', name, 'package.json')
+    const manifestPath = path.join(layout.root, 'node_modules', name, 'package.json')
     return installedVersion(manifestPath) !== spec || readManifest(manifestPath).name !== name
   })
   if (stale.length > 0) {
-    throw new Error(`${APP_DIR}/node_modules does not hold the declared versions of ${stale.map(([name, spec]) => `${name}@${spec}`).join(', ')} — run \`npm install\` in ${APP_DIR}/ and test again before submitting`)
+    throw new Error(`node_modules does not hold the declared versions of ${stale.map(([name, spec]) => `${name}@${spec}`).join(', ')} — run \`npm install\` at the project root and test again before submitting`)
   }
   const platform = readPlatformManifest(layout)
   const supplied = platformSupplied(platform)
@@ -376,32 +365,32 @@ export const assertSubmittableDependencies = (layout: ProjectLayout): void => {
   }
   const peerFixes = Object.entries(peers).flatMap(([name, spec]) => {
     if (PLATFORM_PACKAGES.includes(name)) return []
-    const hoisted = installedVersion(path.join(layout.appDir, 'node_modules', name, 'package.json'))
+    const hoisted = installedVersion(path.join(layout.root, 'node_modules', name, 'package.json'))
     const nested = installedVersion(nestedPlatformCopy(layout, name))
     if (hoisted !== undefined && nested !== undefined && hoisted !== nested) {
       const fix = shippedByPlatform.has(name)
-        ? `run \`npm ls ${name}\` in ${APP_DIR}/ to find the library dependency that pulls in ${hoisted}; pin a version of it compatible with ${nested} or remove it, then run \`npm dedupe\``
-        : `set ${APP_DIR}/package.json to "${nested}" and run \`npm install\` and \`npm dedupe\` in ${APP_DIR}/`
-      return [`${name}: two copies in ${APP_DIR}/ (${hoisted} for src/, ${nested} for the platform) — ${fix}`]
+        ? `run \`npm ls ${name}\` at the project root to find the library dependency that pulls in ${hoisted}; pin a version of it compatible with ${nested} or remove it, then run \`npm dedupe\``
+        : `set ${APP_DIR}/package.json to "${nested}" and run \`npm install\` and \`npm dedupe\` at the project root`
+      return [`${name}: two copies in node_modules (${hoisted} for src/, ${nested} for the platform) — ${fix}`]
     }
     const version = hoisted ?? nested
-    if (version === undefined) return [`${name}: not installed in ${APP_DIR}/ — run \`npm install\` in ${APP_DIR}/`]
+    if (version === undefined) return [`${name}: not installed — run \`npm install\` at the project root`]
     return spec === version ? [] : [`${name}: "${spec}" — set it to "${version}", the version the platform uses`]
   })
   if (peerFixes.length > 0) {
     throw new Error(`package.json peerDependencies must name the exact version the platform uses:\n${peerFixes.map(line => `  ${line}`).join('\n')}`)
   }
-  const lockfilePath = path.join(layout.appDir, 'package-lock.json')
+  const lockfilePath = path.join(layout.root, 'package-lock.json')
   if (!fs.existsSync(lockfilePath)) {
-    throw new Error(`${APP_DIR}/package-lock.json not found — run \`npm install\` (npm 7 or later) in ${APP_DIR}/ and test again before submitting`)
+    throw new Error(`package-lock.json not found — run \`npm install\` (npm 7 or later) at the project root and test again before submitting`)
   }
   const lockfile = readManifest(lockfilePath) as {packages?: Record<string, {version?: string}>}
   const lockedPlatform = lockfile.packages?.['node_modules/@reactivapp/mobile']?.version
   if (lockfile.packages === undefined) {
-    throw new Error(`${APP_DIR}/package-lock.json predates npm 7 — run \`npm install\` with npm 7 or later in ${APP_DIR}/`)
+    throw new Error(`package-lock.json predates npm 7 — run \`npm install\` with npm 7 or later at the project root`)
   }
   if (lockedPlatform === undefined) {
-    throw new Error(`${APP_DIR}/package-lock.json records no installed @reactivapp/mobile — run \`npm install\` in ${APP_DIR}/`)
+    throw new Error(`package-lock.json records no installed @reactivapp/mobile — run \`npm install\` at the project root`)
   }
   const loosePlatformPeers = PLATFORM_PACKAGES.filter(name => !EXACT_VERSION.test(peers[name] ?? ''))
   if (loosePlatformPeers.length > 0) {
@@ -410,6 +399,6 @@ export const assertSubmittableDependencies = (layout: ProjectLayout): void => {
     )
   }
   if (platform.version !== lockedPlatform) {
-    throw new Error(`${APP_DIR}/node_modules holds @reactivapp/mobile@${String(platform.version)} but ${APP_DIR}/package-lock.json records ${lockedPlatform} — run \`npm install\` in ${APP_DIR}/ and test again before submitting`)
+    throw new Error(`node_modules holds @reactivapp/mobile@${String(platform.version)} but package-lock.json records ${lockedPlatform} — run \`npm install\` at the project root and test again before submitting`)
   }
 }

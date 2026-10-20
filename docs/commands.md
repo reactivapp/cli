@@ -50,7 +50,7 @@ reactiv app init [--path <dir>] [--bundle-id <id>] [--app-uuid <uuid>] [--skip-i
 | `--app-uuid` | Optional. The app UUID; defaults to the app your login is provisioned for (`reactiv whoami` shows it) and is refused when it differs. |
 | `--path` | Parent directory to scaffold into. Default: the current directory. |
 | `--bundle-id` | iOS bundle identifier. Default: `com.reactiv.<slug without dashes>`. |
-| `--skip-install` | Skip `npm install` in the root and in `app/`. |
+| `--skip-install` | Skip the `npm install` at the project root. |
 | `--package-manager` | Only `npm` is supported today. |
 
 What happens:
@@ -58,7 +58,7 @@ What happens:
 1. Your login decides the project identity, and nothing is asked: the merchant slug Reactiv provisioned for your key (lowercase letters, digits and dashes) becomes the folder name, the root package name, the app name in `reactiv.conf.js` and the shell, and the default bundle identifier; the app UUID comes from the same login.
 2. The current platform version and its pinned `react` and `react-native` versions are read from the registry, and the template is downloaded with npm so the transcript shows where it came from.
 3. The template is expanded into `<path>/<slug>`, which must not exist or must be empty. A `git init` follows, and the CLI refuses to continue if the scaffold's `.gitignore` does not ignore `.npmrc`.
-4. Dependencies are installed in the root and in `app/` with install scripts turned off and without npm's automatic peer installation (`--legacy-peer-deps`), so a peer a transitive package asks for never enters the project uninvited. The CLI tells you which packages declared an install script so you can run `npm rebuild` in `app/` if the native build needs it.
+4. Dependencies are installed once at the project root (`app/` is an npm workspace of it) with install scripts turned off and without npm's automatic peer installation (`--legacy-peer-deps`), so a peer a transitive package asks for never enters the project uninvited. The CLI tells you which packages declared an install script so you can run `npm rebuild` at the project root if the native build needs it.
 5. An initial commit is created. If anything fails, what this run created is removed so you can fix the cause and run again.
 
 ### `reactiv app run ios`
@@ -74,7 +74,7 @@ reactiv app run ios [--skip-pods] [--simulator <name>]
 | `--skip-pods` | Skip `pod install`. |
 | `--simulator` | Simulator name to target, for example `"iPhone 16"`. Default: the booted iOS simulator when one is found; otherwise React Native's own choice. |
 
-Before building, the CLI checks that `app/package.json` mirrors the library's dependencies, runs `pod install` in `app/ios`, checks that port 8081 is free, starts Metro in the background (log: `.reactiv-metro.log` in the project root) and runs `react-native run-ios` from `app/`. If the build fails, the Metro it started is stopped. This command does not refresh the registry token.
+Before building, the CLI checks that `app/package.json` declares only the platform, runs `pod install` in `app/ios`, checks that port 8081 is free, starts Metro in the background (log: `.reactiv-metro.log` in the project root) and runs `react-native run-ios` from `app/`. If the build fails, the Metro it started is stopped. This command does not refresh the registry token.
 
 ### `reactiv app upgrade`
 
@@ -91,7 +91,7 @@ reactiv app upgrade [--to <version>]
 What happens:
 
 1. The target version and its pinned `react` and `react-native` are resolved from the registry. Without `--to`, a target older than the project's current version is refused.
-2. `package.json` (`peerDependencies` and `devDependencies`) and `app/package.json` (`dependencies`) are updated to the new trio and both are reinstalled with install scripts off and `--legacy-peer-deps`.
+2. `package.json` (`peerDependencies`) and `app/package.json` (`dependencies`) are updated to the new trio and the project is reinstalled once at the root with install scripts off and `--legacy-peer-deps`.
 3. The current template's toolchain files (`app/metro.config.js`, `app/babel.config.js`, `app/react-native.config.js`, `tsconfig.json`, `app/ios/Podfile`) are compared with yours. Differences are printed for you to apply by hand; the CLI does not overwrite them.
 4. `npm run typecheck` runs at the project root.
 

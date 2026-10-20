@@ -479,8 +479,9 @@ describe('submit validate entry file kinds', () => {
 describe('readPlatformVersionFromLockfile', () => {
   const projectWith = (packages: Record<string, {version?: string}>): string => {
     const dir = mkdtempSync(join(tmpdir(), 'lock-'))
+    mkdirSync(join(dir, 'app'))
     writeFileSync(join(dir, 'package-lock.json'), JSON.stringify({lockfileVersion: 3, packages}))
-    return dir
+    return join(dir, 'app')
   }
 
   it('reads the installed @reactivapp/mobile version', () => {
@@ -488,6 +489,6 @@ describe('readPlatformVersionFromLockfile', () => {
   })
 
   it('fails when the platform package is not installed', () => {
-    expect(() => readPlatformVersionFromLockfile(projectWith({}))).toThrow('@reactivapp/mobile not found in app/package-lock.json')
+    expect(() => readPlatformVersionFromLockfile(projectWith({}))).toThrow('@reactivapp/mobile not found in package-lock.json')
   })
 })

@@ -56,8 +56,13 @@ case "$1" in
       const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
       const fallback = {'@reactivapp/mobile': '2608.13.1', react: '19.2.3', 'react-native': '0.86.0'};
       const legacyPeerDeps = process.env.SHIM_LEGACY_PEER_DEPS === '1';
+      // npm workspaces: the root install also installs each workspace's dependencies into the root tree.
+      const workspaceDeps = {};
+      for (const ws of Array.isArray(manifest.workspaces) ? manifest.workspaces : []) {
+        try { Object.assign(workspaceDeps, JSON.parse(fs.readFileSync(ws + '/package.json', 'utf8')).dependencies || {}); } catch (error) {}
+      }
       for (const [name, version] of Object.entries(fallback)) {
-        const own = (manifest.dependencies || {})[name] || (manifest.devDependencies || {})[name];
+        const own = (manifest.dependencies || {})[name] || (manifest.devDependencies || {})[name] || workspaceDeps[name];
         if (legacyPeerDeps && !own) continue;
         const declared = own || (manifest.peerDependencies || {})[name] || version;
         fs.mkdirSync('node_modules/' + name, {recursive: true});
@@ -153,13 +158,14 @@ export const buildTemplateTarball = (
       JSON.stringify({
         name: '{{APP_SLUG}}',
         private: true,
+        workspaces: ['app'],
         main: 'src/index.ts',
         'react-native': 'src/index.ts',
         files: ['src'],
         scripts: {typecheck: 'node node_modules/@reactivapp/mobile/toolchain/typecheck.mjs'},
         dependencies: {},
         peerDependencies: peers,
-        devDependencies: {...peers, typescript: '~5.8.3'},
+        devDependencies: {typescript: '~5.8.3'},
       }) + '\n',
     )
     mkdirSync(join(template, 'app', 'ios'), {recursive: true})

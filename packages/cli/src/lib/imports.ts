@@ -3,7 +3,7 @@ import {builtinModules} from 'node:module'
 import * as path from 'node:path'
 import ts from 'typescript'
 
-import {APP_DIR, LIBRARY_SOURCE_DIR, type ProjectLayout, readLibraryDependencies, readPlatformSupplied} from './layout.js'
+import {LIBRARY_SOURCE_DIR, type ProjectLayout, readLibraryDependencies, readPlatformSupplied} from './layout.js'
 
 export const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']
 
@@ -120,7 +120,7 @@ const listSourceFiles = (dir: string): string[] =>
       return entry.isFile() && SOURCE_EXTENSIONS.some(extension => entry.name.endsWith(extension)) ? [full] : []
     })
 
-const installFix = (name: string): string => `run \`npm install --save-exact ${name}@<version>\` at the project root and in ${APP_DIR}/`
+const installFix = (name: string): string => `run \`npm install --save-exact ${name}@<version>\` at the project root`
 
 export interface ImportCrossCheck {
   errors: string[]
@@ -224,7 +224,7 @@ export const crossCheckImports = (
   const warnings = Object.keys(declared)
     .filter(name => !imported.has(name))
     .sort()
-    .map(name => `package.json declares ${name} but nothing in ${LIBRARY_SOURCE_DIR}/ imports it — if nothing needs it, remove it from package.json and ${APP_DIR}/package.json (it ships with the submission)`)
+    .map(name => `package.json declares ${name} but nothing in ${LIBRARY_SOURCE_DIR}/ imports it — if nothing needs it, remove it from package.json (it ships with the submission)`)
   return {errors, warnings}
 }
 
