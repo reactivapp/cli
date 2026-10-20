@@ -101,17 +101,14 @@ describe('app init and app run on the library layout', () => {
       expect(readFileSync(npmrc, 'utf8')).toContain(BLOCK_START)
       expect(readFileSync(npmrc, 'utf8')).not.toContain('CODEARTIFACT_AUTH_TOKEN')
     }
-    expect(installs()).toEqual([
-      'install --no-audit --no-fund --ignore-scripts --loglevel notice',
-      'install --no-audit --no-fund --ignore-scripts --loglevel notice',
-    ])
+    expect(installs()).toEqual(['install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --include=dev --loglevel notice'])
   }, 60_000)
 
   it('refuses a template that predates the library layout and removes the partial project', async () => {
     await setup({legacyLayout: true})
     const result = await init()
     expect(result.code).not.toBe(0)
-    expect(flat(result.errorText)).toContain('predates the library layout')
+    expect(flat(result.errorText)).toContain('does not list app/ as an npm workspace')
     expect(existsSync(join(workDir, 'acme'))).toBe(false)
     expect(installs()).toEqual([])
   }, 60_000)
@@ -148,7 +145,7 @@ describe('app init and app run on the library layout', () => {
     writeFileSync(manifestPath, JSON.stringify({...library, dependencies: {'date-fns': '4.1.0'}}))
     const result = await runCli(['app', 'run', 'ios'], {cwd: project, env})
     expect(result.code).not.toBe(0)
-    expect(flat(result.errorText)).toContain('date-fns: missing from app/package.json — add "date-fns": "4.1.0" to its dependencies')
+    expect(flat(result.errorText)).toContain('date-fns is declared but not installed — run `npm install` at the project root')
     expect(readFileSync(podLog, 'utf8')).toBe('')
   }, 60_000)
 })

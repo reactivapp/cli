@@ -196,8 +196,8 @@ describe('crossCheckImports', () => {
     })
     expect(errors).toEqual([
       'src/ imports packages that package.json does not declare:',
-      '  @scope/missing: "@scope/missing/sub" in src/c.ts:1 — run `npm install --save-exact @scope/missing@<version>` at the project root and in app/',
-      '  lodash: "lodash" in src/a.ts:1, "lodash/fp" in src/b.ts:2 — run `npm install --save-exact lodash@<version>` at the project root and in app/',
+      '  @scope/missing: "@scope/missing/sub" in src/c.ts:1 — run `npm install --save-exact @scope/missing@<version>` at the project root',
+      '  lodash: "lodash" in src/a.ts:1, "lodash/fp" in src/b.ts:2 — run `npm install --save-exact lodash@<version>` at the project root',
     ])
   })
 
@@ -214,8 +214,8 @@ describe('crossCheckImports', () => {
     expect(check({'src/a.ts': "import {format} from 'date-fns'\n"}, {'date-fns': '4.1.0', 'left-pad': '1.3.0', axios: '1.7.9'})).toEqual({
       errors: [],
       warnings: [
-        'package.json declares axios but nothing in src/ imports it — if nothing needs it, remove it from package.json and app/package.json (it ships with the submission)',
-        'package.json declares left-pad but nothing in src/ imports it — if nothing needs it, remove it from package.json and app/package.json (it ships with the submission)',
+        'package.json declares axios but nothing in src/ imports it — if nothing needs it, remove it from package.json (it ships with the submission)',
+        'package.json declares left-pad but nothing in src/ imports it — if nothing needs it, remove it from package.json (it ships with the submission)',
       ],
     })
   })
@@ -233,8 +233,8 @@ describe('crossCheckImports', () => {
     expect(errors).toEqual([
       'src/ imports Node built-in modules, which do not exist in the app runtime (Hermes):',
       '  "node:fs" in src/a.ts:1 — remove the import',
-      '  "path" in src/a.ts:2 — remove the import, or if you meant the npm package "path", run `npm install --save-exact path@<version>` at the project root and in app/',
-      '  "fs/promises" in src/a.ts:3 — remove the import, or if you meant the npm package "fs", run `npm install --save-exact fs@<version>` at the project root and in app/',
+      '  "path" in src/a.ts:2 — remove the import, or if you meant the npm package "path", run `npm install --save-exact path@<version>` at the project root',
+      '  "fs/promises" in src/a.ts:3 — remove the import, or if you meant the npm package "fs", run `npm install --save-exact fs@<version>` at the project root',
     ])
   })
 
@@ -259,7 +259,7 @@ describe('crossCheckImports', () => {
   it('treats a polyfill listed only as a peer as undeclared', () => {
     expect(check({'src/a.ts': "import {Buffer} from 'buffer'\n"}).errors).toEqual([
       'src/ imports Node built-in modules, which do not exist in the app runtime (Hermes):',
-      '  "buffer" in src/a.ts:1 — remove the import, or if you meant the npm package "buffer", run `npm install --save-exact buffer@<version>` at the project root and in app/',
+      '  "buffer" in src/a.ts:1 — remove the import, or if you meant the npm package "buffer", run `npm install --save-exact buffer@<version>` at the project root',
     ])
   })
 
@@ -320,7 +320,7 @@ describe('crossCheckImports', () => {
   it('warns about every declared dependency when src/ has no source files', () => {
     expect(crossCheckImports([], {'date-fns': '4.1.0'}, platform)).toEqual({
       errors: [],
-      warnings: ['package.json declares date-fns but nothing in src/ imports it — if nothing needs it, remove it from package.json and app/package.json (it ships with the submission)'],
+      warnings: ['package.json declares date-fns but nothing in src/ imports it — if nothing needs it, remove it from package.json (it ships with the submission)'],
     })
   })
 

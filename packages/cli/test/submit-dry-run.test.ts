@@ -1,7 +1,7 @@
 import {execFileSync} from 'node:child_process'
 import {linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 
 import {
@@ -23,6 +23,7 @@ import {SECRET_PATTERNS} from '../src/lib/secret-scan.js'
 const PLATFORM_PEERS = {'@reactivapp/mobile': '2608.13.1', react: '19.2.3', 'react-native': '0.86.0'}
 
 const LIBRARY_MANIFEST = {
+  workspaces: ['app'],
   name: 'acme',
   version: '0.0.1',
   private: true,
@@ -36,7 +37,7 @@ const LIBRARY_MANIFEST = {
   publishConfig: {registry: 'https://registry.npmjs.org/'},
 }
 
-const APP_MANIFEST = {name: 'acme-app', private: true, dependencies: {...PLATFORM_PEERS, 'date-fns': '4.1.0'}}
+const APP_MANIFEST = {name: 'acme-app', private: true, dependencies: {...PLATFORM_PEERS}}
 
 const writeInstalled = (appDir: string, name: string, manifest: object): void => {
   mkdirSync(join(appDir, 'node_modules', name), {recursive: true})
@@ -58,12 +59,12 @@ const writeFixtureProject = (root: string): void => {
   const appDir = join(root, 'app')
   mkdirSync(appDir)
   writeFileSync(join(appDir, 'package.json'), JSON.stringify(APP_MANIFEST, null, 2))
-  writeFileSync(join(appDir, 'package-lock.json'), JSON.stringify({packages: {'node_modules/@reactivapp/mobile': {version: '2608.13.1'}}}))
+  writeFileSync(join(dirname(appDir), 'package-lock.json'), JSON.stringify({packages: {'node_modules/@reactivapp/mobile': {version: '2608.13.1'}}}))
   writeFileSync(join(appDir, 'index.js'), "import '@reactivapp/mobile/src/index';\n")
-  writeInstalled(appDir, '@reactivapp/mobile', {version: '2608.13.1', dependencies: {}})
-  writeInstalled(appDir, 'react', {version: '19.2.3'})
-  writeInstalled(appDir, 'react-native', {version: '0.86.0'})
-  writeInstalled(appDir, 'date-fns', {version: '4.1.0'})
+  writeInstalled(root, '@reactivapp/mobile', {version: '2608.13.1', dependencies: {}})
+  writeInstalled(root, 'react', {version: '19.2.3'})
+  writeInstalled(root, 'react-native', {version: '0.86.0'})
+  writeInstalled(root, 'date-fns', {version: '4.1.0'})
 }
 
 describe('app submit against a mock vending API and a fixture registry', () => {
@@ -288,19 +289,18 @@ describe('app submit against a mock vending API and a fixture registry', () => {
     expect((await submit(['0.1.7'])).stdout).toContain('Dry run complete (publish skipped)')
   }, 30_000)
 
-  it('stops before any login or registry work when app/ does not mirror the library', async () => {
-    writeFileSync(join(projectDir, 'app', 'package.json'), JSON.stringify({...APP_MANIFEST, dependencies: PLATFORM_PEERS}))
+  it('stops before any login or registry work when app/ declares a library dependency', async () => {
+    writeFileSync(join(projectDir, 'app', 'package.json'), JSON.stringify({...APP_MANIFEST, dependencies: {...PLATFORM_PEERS, 'date-fns': '4.1.0'}}))
     const failure = await submit(['0.1.7'])
     expect(failure.code).not.toBe(0)
-    expect(flat(failure.stderr)).toContain('date-fns: missing from app/package.json — add "date-fns": "4.1.0" to its dependencies')
-    expect(flat(failure.stderr)).toContain('run `npm install` in app/')
+    expect(flat(failure.stderr)).toContain('date-fns: already declared in package.json ("4.1.0") — remove it from app/package.json')
+    expect(flat(failure.stderr)).toContain('run `npm install` at the project root')
     expect(mock.requests.filter(request => request.path === '/v1/tokens')).toEqual([])
     expect(npmCalls('view')).toEqual([])
   }, 30_000)
 
   it('stops before any login on a dependency range that review could not pin', async () => {
     writeFileSync(join(projectDir, 'package.json'), JSON.stringify({...LIBRARY_MANIFEST, dependencies: {'date-fns': '^4.1.0'}}))
-    writeFileSync(join(projectDir, 'app', 'package.json'), JSON.stringify({...APP_MANIFEST, dependencies: {...PLATFORM_PEERS, 'date-fns': '^4.1.0'}}))
     const failure = await submit(['0.1.7'])
     expect(flat(failure.stderr)).toContain('must be exact versions')
     expect(mock.requests.filter(request => request.path === '/v1/tokens')).toEqual([])
@@ -352,7 +352,7 @@ describe('app submit against a mock vending API and a fixture registry', () => {
     writeFileSync(join(projectDir, 'src', 'customizations', 'extra.ts'), "import {chunk} from 'lodash/chunk';\nexport const extra = chunk;\n")
     const failure = await submit(['0.1.7'])
     expect(failure.code).not.toBe(0)
-    expect(flat(failure.stderr)).toContain('lodash: "lodash/chunk" in src/customizations/extra.ts:1 — run `npm install --save-exact lodash@<version>` at the project root and in app/')
+    expect(flat(failure.stderr)).toContain('lodash: "lodash/chunk" in src/customizations/extra.ts:1 — run `npm install --save-exact lodash@<version>` at the project root')
     noTokenNoRegistry()
   }, 30_000)
 
@@ -387,12 +387,11 @@ describe('app submit against a mock vending API and a fixture registry', () => {
   it('stops before any login on a dependency whose podspec runs build scripts', async () => {
     const dependencies = {'date-fns': '4.1.0', 'scripted-native': '1.0.0'}
     writeFileSync(join(projectDir, 'package.json'), JSON.stringify({...LIBRARY_MANIFEST, dependencies}))
-    writeFileSync(join(projectDir, 'app', 'package.json'), JSON.stringify({...APP_MANIFEST, dependencies: {...PLATFORM_PEERS, ...dependencies}}))
-    writeInstalled(join(projectDir, 'app'), 'scripted-native', {version: '1.0.0'})
-    writeFileSync(join(projectDir, 'app', 'node_modules', 'scripted-native', 'scripted-native.podspec'), "Pod::Spec.new do |s|\n  s.script_phases = [{:name => 'gen'}]\nend\n")
+    writeInstalled(projectDir, 'scripted-native', {version: '1.0.0'})
+    writeFileSync(join(projectDir, 'node_modules', 'scripted-native', 'scripted-native.podspec'), "Pod::Spec.new do |s|\n  s.script_phases = [{:name => 'gen'}]\nend\n")
     const failure = await submit(['0.1.7'])
     expect(flat(failure.stderr)).toContain('require native project changes a customization cannot ship — contact Reactiv')
-    expect(flat(failure.stderr)).toContain('scripted-native: app/node_modules/scripted-native/scripted-native.podspec sets script_phases')
+    expect(flat(failure.stderr)).toContain('scripted-native: node_modules/scripted-native/scripted-native.podspec sets script_phases')
     noTokenNoRegistry()
   }, 30_000)
 

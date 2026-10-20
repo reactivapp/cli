@@ -10,16 +10,16 @@ import {captureAll, type CaptureAllResult, NPM_LOGLEVEL, npmEnv} from './npm.js'
 export const DEFAULT_SIZE_CAP_MB = 5
 
 export const readPlatformVersionFromLockfile = (appDir: string): string => {
-  const lockfilePath = path.join(appDir, 'package-lock.json')
+  const lockfilePath = path.join(path.dirname(appDir), 'package-lock.json')
   if (!fs.existsSync(lockfilePath)) {
-    throw new Error(`${APP_DIR}/package-lock.json not found — run npm install in ${APP_DIR}/ first`)
+    throw new Error('package-lock.json not found — run npm install at the project root first')
   }
   const lockfile = JSON.parse(fs.readFileSync(lockfilePath, 'utf8')) as {
     packages?: Record<string, {version?: string}>
   }
   const entry = lockfile.packages?.['node_modules/@reactivapp/mobile']
   if (!entry?.version) {
-    throw new Error(`@reactivapp/mobile not found in ${APP_DIR}/package-lock.json — run npm install in ${APP_DIR}/ first`)
+    throw new Error('@reactivapp/mobile not found in package-lock.json — run npm install at the project root first')
   }
   return entry.version
 }

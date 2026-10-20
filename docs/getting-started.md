@@ -80,17 +80,18 @@ This installs pods, starts Metro, and launches the app on the booted simulator (
 
 ## 5. Adding packages
 
-Install at the root **and** in `app/`, always with an exact version:
+Install at the project root, always with an exact version:
 
 ```bash
 npm install --save-exact date-fns@4.1.0
-cd app && npm install --save-exact date-fns@4.1.0 && cd ..
 ```
+
+`app/` is an npm workspace of the root, so the one install serves the library and the shell.
 
 `reactiv app submit` checks that:
 
 - every package `src/` imports is declared in the root `package.json`, with an exact version (no `^`, `~`, tags, URLs or git links);
-- `app/package.json` mirrors the library's dependencies, so what you ran is what you submit;
+- `app/package.json` declares nothing but the platform; your packages live in the root `package.json`, so what you ran is what you submit;
 - nothing the platform already provides is listed: `react`, `react-native` and the Reactiv packages are supplied for you and stay in `peerDependencies`;
 - no dependency needs changes to the native iOS project, as far as the CLI can tell from a list of known libraries and your direct dependencies' CocoaPods podspecs. Pure JavaScript and TypeScript libraries are fine; a library with its own native setup cannot ship inside a customization, so ask Reactiv if you need one.
 
@@ -121,7 +122,7 @@ reactiv app upgrade                 # move to the current platform release
 reactiv app upgrade --to 2610.9.3   # or pick a version
 ```
 
-The CLI updates the platform version in both `package.json` files, reinstalls, and runs your typecheck. Then run `cd app/ios && pod install`. If the project no longer checks clean, the change stays in place and the output ends with the exact command to roll back.
+The CLI updates the platform version in both `package.json` files, reinstalls once at the root, and runs your typecheck. Then run `cd app/ios && pod install`. If the project no longer checks clean, the change stays in place and the output ends with the exact command to roll back.
 
 Some toolchain files (Metro, Babel, tsconfig, Podfile) are yours after the first install. When the current template differs, the CLI prints the new content and leaves the edit to you.
 

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
-import {APP_DIR, type ProjectLayout, readLibraryDependencies} from './layout.js'
+import {type ProjectLayout, readLibraryDependencies} from './layout.js'
 
 export const KNOWN_NATIVE_INTEGRATION_LIBRARIES = [
   '@react-native-firebase/app',
@@ -81,14 +81,14 @@ export const podspecNativeHook = (content: string, fileName = 'x.podspec'): stri
   return undefined
 }
 
-export const findNativeIntegration = (appDir: string, dependencies: Record<string, string>): string[] => {
-  const shown = (file: string): string => path.relative(path.dirname(appDir), file).split(path.sep).join('/')
+export const findNativeIntegration = (projectRoot: string, dependencies: Record<string, string>): string[] => {
+  const shown = (file: string): string => path.relative(projectRoot, file).split(path.sep).join('/')
   const unreadable = (file: string): string => `${shown(file)} ${UNREADABLE}`
   return Object.keys(dependencies)
     .sort()
     .flatMap(name => {
       if (KNOWN_NATIVE_INTEGRATION_LIBRARIES.includes(name)) return [`  ${name}: needs app-level native setup (AppDelegate, Podfile or Info.plist changes)`]
-      const packageDir = path.join(appDir, 'node_modules', name)
+      const packageDir = path.join(projectRoot, 'node_modules', name)
       if (!fs.existsSync(packageDir) || !fs.statSync(packageDir).isDirectory()) return []
       const {podspecs, unreadable: unreadableDirs} = findPodspecs(packageDir)
       return [
@@ -108,7 +108,7 @@ export const findNativeIntegration = (appDir: string, dependencies: Record<strin
 }
 
 export const assertNoAppNativeIntegration = (layout: ProjectLayout): void => {
-  const findings = findNativeIntegration(layout.appDir, readLibraryDependencies(layout))
+  const findings = findNativeIntegration(layout.root, readLibraryDependencies(layout))
   if (findings.length === 0) return
   const unreadable = findings.filter(finding => finding.endsWith(UNREADABLE))
   const native = findings.filter(finding => !finding.endsWith(UNREADABLE))
@@ -116,9 +116,9 @@ export const assertNoAppNativeIntegration = (layout: ProjectLayout): void => {
     [
       ...(native.length > 0 ? ['package.json dependencies include libraries that require native project changes a customization cannot ship — contact Reactiv:', ...native] : []),
       ...(unreadable.length > 0
-        ? [`package.json dependencies include files in ${APP_DIR}/node_modules that could not be read — fix their permissions (or reinstall with \`npm install\` in ${APP_DIR}/) and try again:`, ...unreadable]
+        ? ['package.json dependencies include files in node_modules that could not be read — fix their permissions (or reinstall with `npm install` at the project root) and try again:', ...unreadable]
         : []),
-      `This check reads CocoaPods podspecs in ${APP_DIR}/node_modules and a short list of known libraries; a library that needs Gradle changes, Info.plist usage descriptions or entitlements is not detected here and is rejected at Reactiv's review instead.`,
+      "This check reads CocoaPods podspecs in node_modules and a short list of known libraries; a library that needs Gradle changes, Info.plist usage descriptions or entitlements is not detected here and is rejected at Reactiv's review instead.",
     ].join('\n'),
   )
 }

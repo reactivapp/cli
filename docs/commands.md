@@ -50,7 +50,7 @@ reactiv app init [--path <dir>] [--bundle-id <id>] [--app-uuid <uuid>] [--skip-i
 | `--app-uuid` | Optional. The app UUID; defaults to the app your login is provisioned for (`reactiv whoami` shows it) and is refused when it differs. |
 | `--path` | Parent directory to scaffold into. Default: the current directory. |
 | `--bundle-id` | iOS bundle identifier. Default: `com.reactiv.<slug without dashes>`. |
-| `--skip-install` | Skip `npm install` in the root and in `app/`. |
+| `--skip-install` | Skip the `npm install` at the project root. |
 | `--package-manager` | Only `npm` is supported today. |
 
 What happens:
@@ -58,7 +58,7 @@ What happens:
 1. Your login decides the project identity, and nothing is asked: the merchant slug Reactiv provisioned for your key (lowercase letters, digits and dashes) becomes the folder name, the root package name, the app name in `reactiv.conf.js` and the shell, and the default bundle identifier; the app UUID comes from the same login.
 2. The current platform version and its pinned `react` and `react-native` versions are read from the registry, and the template is downloaded with npm so the transcript shows where it came from.
 3. The template is expanded into `<path>/<slug>`, which must not exist or must be empty. A `git init` follows, and the CLI refuses to continue if the scaffold's `.gitignore` does not ignore `.npmrc`.
-4. Dependencies are installed in the root and in `app/` with install scripts turned off. The CLI tells you which packages declared one so you can run `npm rebuild` in `app/` if the native build needs it.
+4. Dependencies are installed once at the project root (`app/` is an npm workspace of it) with install scripts turned off, development dependencies included whatever `NODE_ENV` says, and without npm's automatic peer installation (`--legacy-peer-deps`), so a peer a transitive package asks for never enters the project uninvited. The CLI tells you which packages declared an install script so you can run `npm rebuild` at the project root if the native build needs it.
 5. An initial commit is created. If anything fails, what this run created is removed so you can fix the cause and run again.
 
 ### `reactiv app run ios`
@@ -74,7 +74,7 @@ reactiv app run ios [--skip-pods] [--simulator <name>]
 | `--skip-pods` | Skip `pod install`. |
 | `--simulator` | Simulator name to target, for example `"iPhone 16"`. Default: the booted iOS simulator when one is found; otherwise React Native's own choice. |
 
-Before building, the CLI checks that `app/package.json` mirrors the library's dependencies, runs `pod install` in `app/ios`, checks that port 8081 is free, starts Metro in the background (log: `.reactiv-metro.log` in the project root) and runs `react-native run-ios` from `app/`. If the build fails, the Metro it started is stopped. This command does not refresh the registry token.
+Before building, the CLI checks that `app/package.json` declares only the platform, runs `pod install` in `app/ios`, checks that port 8081 is free, starts Metro in the background (log: `.reactiv-metro.log` in the project root) and runs `react-native run-ios` from `app/`. If the build fails, the Metro it started is stopped. This command does not refresh the registry token.
 
 ### `reactiv app upgrade`
 
@@ -91,7 +91,7 @@ reactiv app upgrade [--to <version>]
 What happens:
 
 1. The target version and its pinned `react` and `react-native` are resolved from the registry. Without `--to`, a target older than the project's current version is refused.
-2. `package.json` (`peerDependencies`) and `app/package.json` (`dependencies`) are updated to the new trio and both are reinstalled with install scripts off.
+2. `package.json` (`peerDependencies`) and `app/package.json` (`dependencies`) are updated to the new trio and the project is reinstalled once at the root with install scripts off and `--legacy-peer-deps`.
 3. The current template's toolchain files (`app/metro.config.js`, `app/babel.config.js`, `app/react-native.config.js`, `tsconfig.json`, `app/ios/Podfile`) are compared with yours. Differences are printed for you to apply by hand; the CLI does not overwrite them.
 4. `npm run typecheck` runs at the project root.
 
@@ -126,7 +126,7 @@ The checks are listed in [Project layout](project-layout.md#what-reactiv-app-sub
 | --- | --- |
 | `~/.config/reactiv/credentials.json` | Your API key and the merchant it belongs to. Mode `0600`. Removed by `reactiv logout`. |
 | `~/.cache/reactiv/token-cache.json` | The current registry token and its expiry. Mode `0600`. |
-| `<project>/.npmrc` and `<project>/app/.npmrc` | A managed block between `# >>> reactiv` and `# <<< reactiv` markers holding the registry URLs and the token, so plain `npm install` works for the token's lifetime. The CLI refuses to write it into a file git does not ignore (where git can tell), into a symlink, or into a file readable by others (it makes the file `0600` first). Your own lines outside the block are kept, except `@reactivapp` and `@reactiv-submissions` registry lines and token lines for the registry host shape, which the block replaces. |
+| `<project>/.npmrc` and `<project>/app/.npmrc` | A managed block between `# >>> reactiv` and `# <<< reactiv` markers holding the registry URLs, the token and `legacy-peer-deps=true`, so plain `npm install` works for the token's lifetime and resolves the same tree the CLI does. The CLI refuses to write it into a file git does not ignore (where git can tell), into a symlink, or into a file readable by others (it makes the file `0600` first). Your own lines outside the block are kept, except `@reactivapp` and `@reactiv-submissions` registry lines and token lines for the registry host shape, which the block replaces. |
 | `<project>/.reactiv-metro.log` | Metro's output from `reactiv app run`. |
 
 Registry tokens are short-lived (up to 12 hours). `reactiv login` and `reactiv whoami` run inside a project, and `app init`, `app upgrade` and `app submit`, refresh the token when it is missing or about to expire; `app run` and a login that only validates `REACTIV_API_KEY` do not. The CLI only accepts registry URLs from Reactiv's token service that are https and match the expected registry host shape; anything else is refused and nothing is written.

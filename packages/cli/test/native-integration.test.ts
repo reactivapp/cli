@@ -62,85 +62,85 @@ describe('findNativeIntegration', () => {
 
   const install = (name: string, files: Record<string, string>): void => {
     for (const [file, content] of Object.entries(files)) {
-      mkdirSync(join(appDir, 'node_modules', name, file, '..'), {recursive: true})
-      writeFileSync(join(appDir, 'node_modules', name, file), content)
+      mkdirSync(join(root, 'node_modules', name, file, '..'), {recursive: true})
+      writeFileSync(join(root, 'node_modules', name, file), content)
     }
   }
 
   it('rejects a dependency whose podspec carries script_phases, naming the file', () => {
     install('scripted-native', {'package.json': '{}', 'scripted-native.podspec': "Pod::Spec.new do |s|\n  s.script_phases = [{:name => 'gen'}]\nend\n"})
-    expect(findNativeIntegration(appDir, {'scripted-native': '1.0.0'})).toEqual([
-      '  scripted-native: app/node_modules/scripted-native/scripted-native.podspec sets script_phases',
+    expect(findNativeIntegration(root, {'scripted-native': '1.0.0'})).toEqual([
+      '  scripted-native: node_modules/scripted-native/scripted-native.podspec sets script_phases',
     ])
   })
 
   it('finds a podspec below the package root and a scoped package', () => {
     install('@acme/prepared', {'package.json': '{}', 'ios/Prepared.podspec': "s.prepare_command = 'make'\n"})
-    expect(findNativeIntegration(appDir, {'@acme/prepared': '2.0.0'})).toEqual([
-      '  @acme/prepared: app/node_modules/@acme/prepared/ios/Prepared.podspec sets prepare_command',
+    expect(findNativeIntegration(root, {'@acme/prepared': '2.0.0'})).toEqual([
+      '  @acme/prepared: node_modules/@acme/prepared/ios/Prepared.podspec sets prepare_command',
     ])
   })
 
   it('reads a podspec.json found on disk', () => {
     install('json-scripted', {'package.json': '{}', 'json-scripted.podspec.json': '{"name": "json-scripted", "prepare_command": "sh setup.sh"}'})
-    expect(findNativeIntegration(appDir, {'json-scripted': '1.0.0'})).toEqual([
-      '  json-scripted: app/node_modules/json-scripted/json-scripted.podspec.json sets prepare_command',
+    expect(findNativeIntegration(root, {'json-scripted': '1.0.0'})).toEqual([
+      '  json-scripted: node_modules/json-scripted/json-scripted.podspec.json sets prepare_command',
     ])
   })
 
   it('reads podspecs whatever the extension case, and podspecs that are symlinks to files', () => {
     install('upper-native', {'package.json': '{}', 'ios/Upper.PODSPEC': "s.prepare_command = 'make'\n"})
     install('linked-native', {'package.json': '{}', 'real/linked.rb': "s.script_phase = {:name => 'x'}\n"})
-    symlinkSync(join(appDir, 'node_modules', 'linked-native', 'real', 'linked.rb'), join(appDir, 'node_modules', 'linked-native', 'linked.podspec'))
-    expect(findNativeIntegration(appDir, {'upper-native': '1.0.0', 'linked-native': '1.0.0'})).toEqual([
-      '  linked-native: app/node_modules/linked-native/linked.podspec sets script_phase',
-      '  upper-native: app/node_modules/upper-native/ios/Upper.PODSPEC sets prepare_command',
+    symlinkSync(join(root, 'node_modules', 'linked-native', 'real', 'linked.rb'), join(root, 'node_modules', 'linked-native', 'linked.podspec'))
+    expect(findNativeIntegration(root, {'upper-native': '1.0.0', 'linked-native': '1.0.0'})).toEqual([
+      '  linked-native: node_modules/linked-native/linked.podspec sets script_phase',
+      '  upper-native: node_modules/upper-native/ios/Upper.PODSPEC sets prepare_command',
     ])
   })
 
   it('reports a podspec symlink whose target cannot be read, and skips a dangling one', () => {
     install('loop-native', {'package.json': '{}'})
     install('dangling-native', {'package.json': '{}'})
-    const loopDir = join(appDir, 'node_modules', 'loop-native')
+    const loopDir = join(root, 'node_modules', 'loop-native')
     symlinkSync(join(loopDir, 'b.podspec'), join(loopDir, 'a.podspec'))
     symlinkSync(join(loopDir, 'a.podspec'), join(loopDir, 'b.podspec'))
-    symlinkSync(join(root, 'missing'), join(appDir, 'node_modules', 'dangling-native', 'gone.podspec'))
-    expect(findNativeIntegration(appDir, {'loop-native': '1.0.0', 'dangling-native': '1.0.0'})).toEqual([
-      '  loop-native: app/node_modules/loop-native/a.podspec could not be read, so its build hooks cannot be checked',
-      '  loop-native: app/node_modules/loop-native/b.podspec could not be read, so its build hooks cannot be checked',
+    symlinkSync(join(root, 'missing'), join(root, 'node_modules', 'dangling-native', 'gone.podspec'))
+    expect(findNativeIntegration(root, {'loop-native': '1.0.0', 'dangling-native': '1.0.0'})).toEqual([
+      '  loop-native: node_modules/loop-native/a.podspec could not be read, so its build hooks cannot be checked',
+      '  loop-native: node_modules/loop-native/b.podspec could not be read, so its build hooks cannot be checked',
     ])
   })
 
   it.skipIf(process.getuid?.() === 0)('reports an unreadable podspec or package directory as a finding instead of crashing', () => {
     install('locked-file', {'package.json': '{}', 'locked.podspec': PLAIN_PODSPEC})
     install('locked-dir', {'package.json': '{}', 'ios/x.m': ''})
-    chmodSync(join(appDir, 'node_modules', 'locked-file', 'locked.podspec'), 0o000)
-    chmodSync(join(appDir, 'node_modules', 'locked-dir', 'ios'), 0o000)
+    chmodSync(join(root, 'node_modules', 'locked-file', 'locked.podspec'), 0o000)
+    chmodSync(join(root, 'node_modules', 'locked-dir', 'ios'), 0o000)
     try {
-      expect(findNativeIntegration(appDir, {'locked-file': '1.0.0', 'locked-dir': '1.0.0'})).toEqual([
-        '  locked-dir: app/node_modules/locked-dir/ios could not be read, so its build hooks cannot be checked',
-        '  locked-file: app/node_modules/locked-file/locked.podspec could not be read, so its build hooks cannot be checked',
+      expect(findNativeIntegration(root, {'locked-file': '1.0.0', 'locked-dir': '1.0.0'})).toEqual([
+        '  locked-dir: node_modules/locked-dir/ios could not be read, so its build hooks cannot be checked',
+        '  locked-file: node_modules/locked-file/locked.podspec could not be read, so its build hooks cannot be checked',
       ])
     } finally {
-      chmodSync(join(appDir, 'node_modules', 'locked-file', 'locked.podspec'), 0o644)
-      chmodSync(join(appDir, 'node_modules', 'locked-dir', 'ios'), 0o755)
+      chmodSync(join(root, 'node_modules', 'locked-file', 'locked.podspec'), 0o644)
+      chmodSync(join(root, 'node_modules', 'locked-dir', 'ios'), 0o755)
     }
   })
 
   it('accepts a plain podspec and a JS-only package', () => {
     install('plain-native', {'package.json': '{}', 'plain-native.podspec': PLAIN_PODSPEC})
     install('js-only', {'package.json': '{}', 'index.js': 'module.exports = {}\n'})
-    expect(findNativeIntegration(appDir, {'plain-native': '1.0.0', 'js-only': '1.0.0'})).toEqual([])
+    expect(findNativeIntegration(root, {'plain-native': '1.0.0', 'js-only': '1.0.0'})).toEqual([])
   })
 
   it('does not descend into a nested node_modules', () => {
     install('wrapper', {'package.json': '{}', 'node_modules/inner/inner.podspec': "s.script_phase = {:name => 'x'}\n"})
-    expect(findNativeIntegration(appDir, {wrapper: '1.0.0'})).toEqual([])
+    expect(findNativeIntegration(root, {wrapper: '1.0.0'})).toEqual([])
   })
 
   it('rejects every library on the known list without reading its files', () => {
     const declared = Object.fromEntries(KNOWN_NATIVE_INTEGRATION_LIBRARIES.map(name => [name, '1.0.0']))
-    expect(findNativeIntegration(appDir, declared)).toEqual(
+    expect(findNativeIntegration(root, declared)).toEqual(
       [...KNOWN_NATIVE_INTEGRATION_LIBRARIES].sort().map(name => `  ${name}: needs app-level native setup (AppDelegate, Podfile or Info.plist changes)`),
     )
   })
@@ -152,7 +152,7 @@ describe('findNativeIntegration', () => {
       [
         'package.json dependencies include libraries that require native project changes a customization cannot ship — contact Reactiv:',
         '  react-native-code-push: needs app-level native setup (AppDelegate, Podfile or Info.plist changes)',
-        "This check reads CocoaPods podspecs in app/node_modules and a short list of known libraries; a library that needs Gradle changes, Info.plist usage descriptions or entitlements is not detected here and is rejected at Reactiv's review instead.",
+        "This check reads CocoaPods podspecs in node_modules and a short list of known libraries; a library that needs Gradle changes, Info.plist usage descriptions or entitlements is not detected here and is rejected at Reactiv's review instead.",
       ].join('\n'),
     )
   })
@@ -160,16 +160,16 @@ describe('findNativeIntegration', () => {
   it.skipIf(process.getuid?.() === 0)('reports unreadable files under their own heading, not as native changes', () => {
     writeFileSync(join(root, 'package.json'), JSON.stringify({dependencies: {'locked-file': '1.0.0'}}))
     install('locked-file', {'package.json': '{}', 'locked.podspec': PLAIN_PODSPEC})
-    chmodSync(join(appDir, 'node_modules', 'locked-file', 'locked.podspec'), 0o000)
+    chmodSync(join(root, 'node_modules', 'locked-file', 'locked.podspec'), 0o000)
     try {
       expect(() => assertNoAppNativeIntegration({root, appDir})).toThrow(
         [
-          'package.json dependencies include files in app/node_modules that could not be read — fix their permissions (or reinstall with `npm install` in app/) and try again:',
-          '  locked-file: app/node_modules/locked-file/locked.podspec could not be read, so its build hooks cannot be checked',
+          'package.json dependencies include files in node_modules that could not be read — fix their permissions (or reinstall with `npm install` at the project root) and try again:',
+          '  locked-file: node_modules/locked-file/locked.podspec could not be read, so its build hooks cannot be checked',
         ].join('\n'),
       )
     } finally {
-      chmodSync(join(appDir, 'node_modules', 'locked-file', 'locked.podspec'), 0o644)
+      chmodSync(join(root, 'node_modules', 'locked-file', 'locked.podspec'), 0o644)
     }
   })
 
@@ -184,7 +184,7 @@ describe('findNativeIntegration', () => {
     }
     expect(message.split('\n').slice(1, 3)).toEqual([
       '  react-native-code-push: needs app-level native setup (AppDelegate, Podfile or Info.plist changes)',
-      '  scripted-native: app/node_modules/scripted-native/scripted-native.podspec sets script_phases',
+      '  scripted-native: node_modules/scripted-native/scripted-native.podspec sets script_phases',
     ])
     expect(message).toContain('is not detected here')
   })

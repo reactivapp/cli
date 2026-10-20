@@ -101,7 +101,6 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
       `view @reactivapp/mobile@${B} peerDependencies`,
       'pack @reactivapp/app-template',
       'install',
-      'install',
       'run typecheck',
     ])
     for (const lookup of calls.slice(0, 3)) expect(lookup).toMatch(/--@reactivapp:registry=https:\/\//)
@@ -112,7 +111,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     expect(out.indexOf('cd app/ios && pod install')).toBeLessThan(out.indexOf('Running the project typecheck'))
     expect(out).toContain(`typecheck clean against @reactivapp/mobile@${B}`)
     expect(out).toContain(`roll back with: reactiv app upgrade --to ${A}`)
-    expect(readFileSync(join(project, 'app', 'node_modules', 'react-native', 'package.json'), 'utf8')).toContain(PEERS[B]['react-native'])
+    expect(readFileSync(join(project, 'node_modules', 'react-native', 'package.json'), 'utf8')).toContain(PEERS[B]['react-native'])
   }, 60_000)
 
   it('leaves src/, developer files and toolchain delegations untouched, printing the exact replacement instead', async () => {
@@ -126,7 +125,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     expect(result.code).toBe(0)
     expect(git(['ls-files', '--others', '--exclude-standard'])).toBe('')
     const changed = git(['diff', '--name-only', 'HEAD']).split('\n').sort()
-    expect(changed).toEqual(['app/package-lock.json', 'app/package.json', 'package-lock.json', 'package.json'])
+    expect(changed).toEqual(['app/package.json', 'package-lock.json', 'package.json'])
     expect(readFileSync(join(project, 'src', 'index.ts'), 'utf8')).toBe("export const mine = 'developer code';\n")
     expect(readFileSync(join(project, 'app', 'babel.config.js'), 'utf8')).toBe("module.exports = {presets: ['my-own-preset']};\n")
 
@@ -145,7 +144,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     expect(again.code).toBe(0)
     expect(again.stdout).toContain(`already declare @reactivapp/mobile@${B}`)
     expect([readFileSync(join(project, 'package.json'), 'utf8'), readFileSync(join(project, 'app', 'package.json'), 'utf8')]).toEqual(before)
-    expect(npmCalls().filter(call => call.startsWith('install ') || call.startsWith('run typecheck'))).toHaveLength(3)
+    expect(npmCalls().filter(call => call.startsWith('install ') || call.startsWith('run typecheck'))).toHaveLength(2)
   }, 60_000)
 
   it('keeps a failed upgrade applied, reports the typecheck errors and prints the one-command rollback that works', async () => {
@@ -174,7 +173,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     const result = await upgrade([], 'upgrade a project whose app/ does not mirror the library')
     expect(result.code).not.toBe(0)
     const error = flat(result.errorText)
-    expect(error).toContain('date-fns: missing from app/package.json — add "date-fns": "4.1.0" to its dependencies')
+    expect(error).toContain('date-fns is declared but not installed — run `npm install` at the project root')
     expect(error).toContain(`roll back with: reactiv app upgrade --to ${A}`)
     expect(manifest('app/package.json').dependencies['@reactivapp/mobile']).toBe(B)
     expect(manifest('package.json').dependencies).toEqual({'date-fns': '4.1.0'})
@@ -201,7 +200,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
 
     const named = await upgrade(['--to', B])
     expect(named.code).toBe(0)
-    expect(flat(named.stdout)).toContain('roll back with: restore package.json, app/package.json and both')
+    expect(flat(named.stdout)).toContain('roll back with: restore package.json, app/package.json and')
     expect(trioOf(manifest('app/package.json').dependencies)).toEqual({'@reactivapp/mobile': B, ...PEERS[B]})
   }, 60_000)
 

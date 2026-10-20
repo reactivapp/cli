@@ -7,7 +7,7 @@ import {createAuthContext, reportAuthError} from '../../lib/auth/context'
 import {writeFileAtomic} from '../../lib/auth/files'
 import {ensureRegistryAuth, type RegistryAuth} from '../../lib/auth/token'
 import {BootstrapRegistry, installWithRegistryAuth, type RegistryOperation, skippedInstallScripts} from '../../lib/bootstrap-registry'
-import {APP_DIR, assertDependenciesInSync, assertNpmrcFilesIgnored, readManifest, resolveLayout, type ProjectLayout} from '../../lib/layout'
+import {APP_DIR, assertDependenciesInSync, assertNpmrcFilesIgnored, assertWorkspaceLayout, readManifest, resolveLayout, type ProjectLayout} from '../../lib/layout'
 import {npmEnv, runTee} from '../../lib/npm'
 import {loadProjectIdentity, PROJECT_CONFIG, type ProjectIdentity} from '../../lib/project'
 import {defaultBundleIdentifier} from '../../lib/scaffold'
@@ -16,6 +16,7 @@ import {
   findDelegationSteps,
   formatDelegationSteps,
   isExactVersion,
+  type ManifestSection,
   type PlatformTrio,
   setPlatformVersions,
 } from '../../lib/upgrade'
@@ -60,6 +61,7 @@ export class AppUpgrade extends Command {
         throw new Error(`${APP_DIR}/package.json does not depend on @reactivapp/mobile — this is not a scaffolded Reactiv Plus project`)
       }
       previous = installed
+      assertWorkspaceLayout(readManifest(libraryPath))
       assertNpmrcFilesIgnored(projectRoot)
     } catch (error) {
       this.error(error instanceof Error ? error.message : String(error))
@@ -72,7 +74,7 @@ export class AppUpgrade extends Command {
     }
     const rollback = isExactVersion(previous)
       ? `reactiv app upgrade --to ${previous}`
-      : `restore package.json, ${APP_DIR}/package.json and both package-lock.json files from git (the previous @reactivapp/mobile "${previous}" was not an exact version), then run npm install in both`
+      : `restore package.json, ${APP_DIR}/package.json and package-lock.json from git (the previous @reactivapp/mobile "${previous}" was not an exact version), then run npm install at the project root`
 
     const ctx = createAuthContext(this)
     let auth: RegistryAuth
@@ -126,7 +128,7 @@ export class AppUpgrade extends Command {
       this.log('Downloading @reactivapp/app-template…')
       const templateDir = await registry.fetchTemplate()
 
-      const edits: Array<[string, 'dependencies' | 'peerDependencies']> = [
+      const edits: Array<[string, ManifestSection]> = [
         [libraryPath, 'peerDependencies'],
         [appPath, 'dependencies'],
       ]
@@ -148,14 +150,12 @@ export class AppUpgrade extends Command {
       }
       if (!changed) this.log(`package.json and ${APP_DIR}/package.json already declare @reactivapp/mobile@${target} and its peers — reinstalling to match`)
 
-      this.log('Installing library dependencies (npm, root)…')
+      this.log(`Installing dependencies (npm, one install for the library and ${APP_DIR}/)…`)
       started = true
       await installWithRegistryAuth(ctx, registry, projectRoot, projectRoot, UPGRADE_OPERATION)
-      this.log(`Installing app shell dependencies (npm, ${APP_DIR}/)…`)
-      await installWithRegistryAuth(ctx, registry, projectRoot, layout.appDir, UPGRADE_OPERATION)
-      const skipped = skippedInstallScripts(layout.appDir)
+      const skipped = skippedInstallScripts(projectRoot)
       if (skipped.length > 0) {
-        this.warn(`install scripts were not run in ${APP_DIR}/ for: ${skipped.join(', ')} — run \`npm rebuild\` in ${APP_DIR}/ if the app fails to build`)
+        this.warn(`install scripts were not run for: ${skipped.join(', ')} — run \`npm rebuild\` at the project root if the app fails to build`)
       }
       try {
         assertDependenciesInSync(layout)

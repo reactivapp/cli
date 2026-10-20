@@ -77,6 +77,7 @@ export const renderBlock = (block: RegistryBlock): string => {
     `${SUBMISSIONS_SCOPE}:registry=${submissions}`,
     `${authKey(tools)}=${token}`,
     `${authKey(submissions)}=${token}`,
+    'legacy-peer-deps=true',
     BLOCK_END,
   ].join('\n')
 }

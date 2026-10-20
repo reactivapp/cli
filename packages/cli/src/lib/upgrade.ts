@@ -58,7 +58,9 @@ const splitVersion = (version: string): [string[], string | undefined] => {
 
 const detectIndent = (text: string): string | number => /^([ \t]+)"/m.exec(text)?.[1] ?? (text.trim().includes('\n') ? 2 : 0)
 
-export const setPlatformVersions = (text: string, section: 'dependencies' | 'peerDependencies', trio: PlatformTrio): string => {
+export type ManifestSection = 'dependencies' | 'peerDependencies' | 'devDependencies'
+
+export const setPlatformVersions = (text: string, section: ManifestSection, trio: PlatformTrio): string => {
   const manifest = JSON.parse(text) as Record<string, unknown>
   const current = manifest[section]
   const entries = typeof current === 'object' && current !== null && !Array.isArray(current) ? (current as Record<string, unknown>) : {}

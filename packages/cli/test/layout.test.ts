@@ -16,20 +16,18 @@ import {assertLibraryManifest, buildSubmissionManifest} from '../src/lib/submiss
 const platform = {'@reactivapp/mobile': '2608.13.1', react: '19.2.3', 'react-native': '0.86.0'}
 
 describe('findDependencyDrift', () => {
-  it('reports nothing when the shell mirrors the library exactly', () => {
+  it('reports a library dependency the shell still mirrors', () => {
     expect(
       findDependencyDrift({dependencies: {'date-fns': '4.1.0'}}, {dependencies: {...platform, 'date-fns': '4.1.0'}}),
-    ).toEqual([])
+    ).toEqual([{name: 'date-fns', library: '4.1.0', app: '4.1.0'}])
   })
 
   it('reports nothing for a library without dependencies', () => {
     expect(findDependencyDrift({}, {dependencies: platform})).toEqual([])
   })
 
-  it('reports a library dependency the shell is missing', () => {
-    expect(findDependencyDrift({dependencies: {'date-fns': '4.1.0'}}, {dependencies: platform})).toEqual([
-      {name: 'date-fns', library: '4.1.0', app: undefined},
-    ])
+  it('reports nothing when the shell declares only the platform', () => {
+    expect(findDependencyDrift({dependencies: {'date-fns': '4.1.0'}}, {dependencies: platform})).toEqual([])
   })
 
   it('reports a spec mismatch, compared as written', () => {
@@ -52,9 +50,7 @@ describe('findDependencyDrift', () => {
 
   it('ignores inherited object keys', () => {
     expect(findDependencyDrift({dependencies: {}}, {dependencies: {...platform}})).toEqual([])
-    expect(findDependencyDrift({dependencies: {constructor: '1.0.0'}}, {dependencies: platform})).toEqual([
-      {name: 'constructor', library: '1.0.0', app: undefined},
-    ])
+    expect(findDependencyDrift({dependencies: {constructor: '1.0.0'}}, {dependencies: platform})).toEqual([])
   })
 
   it('never asks the library to mirror the platform packages the shell depends on', () => {
@@ -65,44 +61,43 @@ describe('findDependencyDrift', () => {
 describe('formatDependencyDrift', () => {
   it('names the exact edit for each kind of drift and the install to run after', () => {
     const message = formatDependencyDrift([
-      {name: 'a', library: '1.0.0'},
       {name: 'b', library: '2.0.0', app: '1.0.0'},
       {name: 'c', app: '3.0.0'},
     ])
-    expect(message).toContain('a: missing from app/package.json — add "a": "1.0.0" to its dependencies')
-    expect(message).toContain('b: "2.0.0" in package.json but "1.0.0" in app/package.json — set app/package.json to "2.0.0"')
-    expect(message).toContain('c: in app/package.json only — add "c": "3.0.0" to the root package.json dependencies')
-    expect(message).toContain('run `npm install` in app/')
+    expect(message).toContain('b: already declared in package.json ("2.0.0") — remove it from app/package.json')
+    expect(message).toContain('c: in app/package.json only — run `npm install --save-exact c@3.0.0` at the project root')
+    expect(message).toContain('run `npm install` at the project root')
   })
 })
 
 const platformManifest = {name: '@reactivapp/mobile', version: '2608.13.1', dependencies: {'@reactivapp/config': '1.0.0', 'react-native-svg': '15.12.0'}}
 
-const installPlatform = (appDir: string): void => {
+const installPlatform = (root: string): void => {
   for (const name of ['react', 'react-native'] as const) {
-    mkdirSync(join(appDir, 'node_modules', name), {recursive: true})
-    writeFileSync(join(appDir, 'node_modules', name, 'package.json'), JSON.stringify({name, version: platform[name]}))
+    mkdirSync(join(root, 'node_modules', name), {recursive: true})
+    writeFileSync(join(root, 'node_modules', name, 'package.json'), JSON.stringify({name, version: platform[name]}))
   }
-  writeFileSync(join(appDir, 'package-lock.json'), JSON.stringify({packages: {'node_modules/@reactivapp/mobile': {version: '2608.13.1'}}}))
+  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({packages: {'node_modules/@reactivapp/mobile': {version: '2608.13.1'}}}))
 }
 
 const project = (library: object, app: object): string => {
   const root = mkdtempSync(join(tmpdir(), 'layout-'))
-  mkdirSync(join(root, 'app', 'node_modules', '@reactivapp', 'mobile'), {recursive: true})
-  writeFileSync(join(root, 'package.json'), JSON.stringify(library))
+  mkdirSync(join(root, 'app'), {recursive: true})
+  mkdirSync(join(root, 'node_modules', '@reactivapp', 'mobile'), {recursive: true})
+  writeFileSync(join(root, 'package.json'), JSON.stringify({workspaces: ['app'], ...library}))
   writeFileSync(join(root, 'app', 'package.json'), JSON.stringify(app))
-  writeFileSync(join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'package.json'), JSON.stringify(platformManifest))
-  installPlatform(join(root, 'app'))
+  writeFileSync(join(root, 'node_modules', '@reactivapp', 'mobile', 'package.json'), JSON.stringify(platformManifest))
+  installPlatform(root)
   return root
 }
 
 const install = (root: string, name: string, version = '1.0.0'): void => {
-  mkdirSync(join(root, 'app', 'node_modules', name), {recursive: true})
-  writeFileSync(join(root, 'app', 'node_modules', name, 'package.json'), JSON.stringify({name, version}))
+  mkdirSync(join(root, 'node_modules', name), {recursive: true})
+  writeFileSync(join(root, 'node_modules', name, 'package.json'), JSON.stringify({name, version}))
 }
 
 const inSync = (deps: Record<string, string>, extra: object = {}): string => {
-  const root = project({dependencies: deps, peerDependencies: platform, ...extra}, {dependencies: {...platform, ...deps}})
+  const root = project({dependencies: deps, peerDependencies: platform, ...extra}, {dependencies: {...platform}})
   for (const [name, version] of Object.entries(deps)) install(root, name, version)
   return root
 }
@@ -118,7 +113,7 @@ describe('assertDependenciesInSync (app run and submit)', () => {
 
   it('throws the drift report', () => {
     const root = project({dependencies: {x: '1.0.0'}, peerDependencies: platform}, {dependencies: platform})
-    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('x: missing from app/package.json')
+    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('x is declared but not installed — run `npm install` at the project root')
   })
 
   it('rejects a package the platform already ships declared as a library dependency', () => {
@@ -147,15 +142,15 @@ describe('assertDependenciesInSync (app run and submit)', () => {
     expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('react: missing from app/package.json — add "react": "19.2.3" to its dependencies')
   })
 
-  it('requires mirrored dependencies to be installed in app/', () => {
+  it('refuses a library dependency the shell still mirrors', () => {
     const root = project({dependencies: {x: '1.0.0'}, peerDependencies: platform}, {dependencies: {...platform, x: '1.0.0'}})
-    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('x is declared but not installed in app/')
+    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('x: already declared in package.json ("1.0.0") — remove it from app/package.json')
   })
 
   it('requires react and react-native to be installed in app/', () => {
     const root = inSync({})
-    rmSync(join(root, 'app', 'node_modules', 'react-native'), {recursive: true})
-    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('react-native is declared but not installed in app/')
+    rmSync(join(root, 'node_modules', 'react-native'), {recursive: true})
+    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('react-native is declared but not installed — run `npm install` at the project root')
   })
 
   it('tells the merchant to drop an app-only package the platform already ships', () => {
@@ -165,31 +160,31 @@ describe('assertDependenciesInSync (app run and submit)', () => {
 
   it('rejects a library dependency the platform keeps its own nested copy of', () => {
     const root = inSync({'lottie-react-native': '7.0.0'})
-    mkdirSync(join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native'), {recursive: true})
-    writeFileSync(join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native', 'package.json'), '{"version":"6.1.0"}')
+    mkdirSync(join(root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native'), {recursive: true})
+    writeFileSync(join(root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native', 'package.json'), '{"version":"6.1.0"}')
     expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow(
-      'lottie-react-native: the platform uses 6.1.0 — pin package.json and app/package.json to "6.1.0"',
+      'lottie-react-native: the platform uses 6.1.0 — pin package.json to "6.1.0"',
     )
   })
 
   it('asks for a dedupe when the nested copy already matches the pin', () => {
     const root = inSync({'lottie-react-native': '7.0.0'})
-    const nested = join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native')
+    const nested = join(root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native')
     mkdirSync(nested, {recursive: true})
     writeFileSync(join(nested, 'package.json'), '{"version":"7.0.0"}')
-    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('lottie-react-native: both copies are 7.0.0 — run `npm dedupe` in app/')
+    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('lottie-react-native: both copies are 7.0.0 — run `npm dedupe` at the project root')
   })
 
   it('treats an installed package without a version as a damaged install', () => {
     const root = inSync({'lottie-react-native': '7.0.0'})
-    const nested = join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native')
+    const nested = join(root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'lottie-react-native')
     mkdirSync(nested, {recursive: true})
     writeFileSync(join(nested, 'package.json'), '{}')
     expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('has no version — the install is damaged')
   })
 
   const withPlatformPeer = (root: string): void => {
-    const platformPath = join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'package.json')
+    const platformPath = join(root, 'node_modules', '@reactivapp', 'mobile', 'package.json')
     writeFileSync(platformPath, JSON.stringify({...platformManifest, peerDependencies: {'react-native-reanimated': '>=3'}}))
   }
 
@@ -221,27 +216,27 @@ describe('assertDependenciesInSync (app run and submit)', () => {
     const root = project({peerDependencies: platform}, {dependencies: {...platform, 'react-native-reanimated': '3.17.0'}})
     withPlatformPeer(root)
     expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow(
-      'react-native-reanimated: the platform expects the app to provide it — run `npm install` in app/, keep it in app/package.json and add its installed exact version ("3.17.0" now) to package.json peerDependencies',
+      'react-native-reanimated: the platform expects the app to provide it — keep it in app/package.json and add its installed exact version ("3.17.0" now) to package.json peerDependencies',
     )
   })
 
   it('still rejects a package the platform declares as a peer as a library dependency', () => {
     const root = project({dependencies: {'react-native-reanimated': '3.17.0'}, peerDependencies: platform}, {dependencies: {...platform, 'react-native-reanimated': '3.17.0'}})
-    const platformPath = join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'package.json')
+    const platformPath = join(root, 'node_modules', '@reactivapp', 'mobile', 'package.json')
     writeFileSync(platformPath, JSON.stringify({...platformManifest, peerDependencies: {'react-native-reanimated': '>=3'}}))
     expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('react-native-reanimated: the platform expects the app to provide it — move it to peerDependencies and keep it in app/package.json')
   })
 
   it('requires the installed react and react-native to match app/package.json', () => {
     const root = inSync({})
-    writeFileSync(join(root, 'app', 'node_modules', 'react', 'package.json'), JSON.stringify({name: 'react', version: '19.0.0'}))
+    writeFileSync(join(root, 'node_modules', 'react', 'package.json'), JSON.stringify({name: 'react', version: '19.0.0'}))
     expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('does not hold the react@19.2.3 that app/package.json declares')
   })
 
   it('requires the platform to be installed in app/', () => {
     const root = inSync({})
-    rmSync(join(root, 'app', 'node_modules', '@reactivapp'), {recursive: true})
-    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('@reactivapp/mobile is not installed in app/')
+    rmSync(join(root, 'node_modules', '@reactivapp'), {recursive: true})
+    expect(() => assertDependenciesInSync(resolveLayout(root))).toThrow('@reactivapp/mobile is not installed —')
   })
 
   it('rejects non-string dependency values', () => {
@@ -275,7 +270,7 @@ describe('assertSubmittableDependencies (submit only)', () => {
 
   it('requires the installed package to be the declared one, not a substitute', () => {
     const root = inSync({foo: '1.2.3'})
-    writeFileSync(join(root, 'app', 'node_modules', 'foo', 'package.json'), JSON.stringify({name: 'other', version: '1.2.3'}))
+    writeFileSync(join(root, 'node_modules', 'foo', 'package.json'), JSON.stringify({name: 'other', version: '1.2.3'}))
     expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('does not hold the declared versions of foo@1.2.3')
   })
 
@@ -293,17 +288,17 @@ describe('assertSubmittableDependencies (submit only)', () => {
   it('refuses two different copies of a supplied peer', () => {
     const root = inSync({}, {peerDependencies: {...platform, 'react-native-svg': '15.12.0'}})
     install(root, 'react-native-svg', '15.0.0')
-    const nested = join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'react-native-svg')
+    const nested = join(root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'react-native-svg')
     mkdirSync(nested, {recursive: true})
     writeFileSync(join(nested, 'package.json'), JSON.stringify({name: 'react-native-svg', version: '15.12.0'}))
     expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow(
-      'react-native-svg: two copies in app/ (15.0.0 for src/, 15.12.0 for the platform) — run `npm ls react-native-svg` in app/',
+      'react-native-svg: two copies in node_modules (15.0.0 for src/, 15.12.0 for the platform) — run `npm ls react-native-svg` at the project root',
     )
   })
 
   it('accepts a supplied peer that only the platform holds', () => {
     const root = inSync({}, {peerDependencies: {...platform, 'react-native-svg': '15.12.0'}})
-    const nested = join(root, 'app', 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'react-native-svg')
+    const nested = join(root, 'node_modules', '@reactivapp', 'mobile', 'node_modules', 'react-native-svg')
     mkdirSync(nested, {recursive: true})
     writeFileSync(join(nested, 'package.json'), JSON.stringify({name: 'react-native-svg', version: '15.12.0'}))
     expect(() => assertSubmittableDependencies(resolveLayout(root))).not.toThrow()
@@ -311,27 +306,27 @@ describe('assertSubmittableDependencies (submit only)', () => {
 
   it('reports a supplied peer that is not installed at all', () => {
     const root = inSync({}, {peerDependencies: {...platform, 'react-native-svg': '15.12.0'}})
-    expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('react-native-svg: not installed in app/')
+    expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('react-native-svg: not installed —')
   })
 
   it('tells a pre-npm-7 lockfile from a stale one', () => {
     const root = inSync({})
-    writeFileSync(join(root, 'app', 'package-lock.json'), JSON.stringify({lockfileVersion: 1, dependencies: {}}))
+    writeFileSync(join(root, 'package-lock.json'), JSON.stringify({lockfileVersion: 1, dependencies: {}}))
     expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('predates npm 7')
-    writeFileSync(join(root, 'app', 'package-lock.json'), JSON.stringify({lockfileVersion: 3, packages: {}}))
+    writeFileSync(join(root, 'package-lock.json'), JSON.stringify({lockfileVersion: 3, packages: {}}))
     expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('records no installed @reactivapp/mobile')
   })
 
   it('explains a missing lockfile', () => {
     const root = inSync({})
-    rmSync(join(root, 'app', 'package-lock.json'))
-    expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('app/package-lock.json not found — run `npm install` (npm 7 or later)')
+    rmSync(join(root, 'package-lock.json'))
+    expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('package-lock.json not found — run `npm install` (npm 7 or later)')
   })
 
   it('refuses a platform install that disagrees with the lockfile', () => {
     const root = inSync({})
-    writeFileSync(join(root, 'app', 'package-lock.json'), JSON.stringify({packages: {'node_modules/@reactivapp/mobile': {version: '2608.14.0'}}}))
-    expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('holds @reactivapp/mobile@2608.13.1 but app/package-lock.json records 2608.14.0')
+    writeFileSync(join(root, 'package-lock.json'), JSON.stringify({packages: {'node_modules/@reactivapp/mobile': {version: '2608.14.0'}}}))
+    expect(() => assertSubmittableDependencies(resolveLayout(root))).toThrow('holds @reactivapp/mobile@2608.13.1 but package-lock.json records 2608.14.0')
   })
 
   it('requires exact platform peers at submit', () => {
@@ -461,7 +456,7 @@ describe('buildSubmissionManifest', () => {
 })
 
 describe('readPlatformSupplied', () => {
-  const platformDir = (root: string): string => join(root, 'app', 'node_modules', '@reactivapp', 'mobile')
+  const platformDir = (root: string): string => join(root, 'node_modules', '@reactivapp', 'mobile')
   const withPlatform = (manifest: object, aliases?: string): string => {
     const root = mkdtempSync(join(tmpdir(), 'supplied-'))
     mkdirSync(join(platformDir(root), 'toolchain'), {recursive: true})
