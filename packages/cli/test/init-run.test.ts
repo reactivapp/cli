@@ -101,7 +101,7 @@ describe('app init and app run on the library layout', () => {
       expect(readFileSync(npmrc, 'utf8')).toContain(BLOCK_START)
       expect(readFileSync(npmrc, 'utf8')).not.toContain('CODEARTIFACT_AUTH_TOKEN')
     }
-    expect(installs()).toEqual(['install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --loglevel notice'])
+    expect(installs()).toEqual(['install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --include=dev --loglevel notice'])
   }, 60_000)
 
   it('refuses a template that predates the library layout and removes the partial project', async () => {

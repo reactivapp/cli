@@ -108,7 +108,7 @@ describe('scripted walkthrough against a mock vending API: login â†’ app init â†
     assertNoSecrets(npmLog)
     expect(npmLog).toMatch(/^view @reactivapp\/mobile version --@reactivapp:registry=https:\S+\/npm\/tools\/ --loglevel notice$/m)
     expect(npmLog).toMatch(/^pack @reactivapp\/app-template --pack-destination \S+ --ignore-scripts --@reactivapp:registry=\S+ --loglevel http$/m)
-    expect(npmLog).toMatch(/^install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --loglevel notice$/m)
+    expect(npmLog).toMatch(/^install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --include=dev --loglevel notice$/m)
     expect(npmLog).not.toMatch(/aws |codeartifact get-authorization-token|CODEARTIFACT_AUTH_TOKEN/)
     transcript.push(`# vending calls: ${mock.requests.map(request => `${request.method} ${request.path}`).join(', ')}`, '# npm calls (recorded by the shim):', npmLog.trimEnd())
 

@@ -58,7 +58,7 @@ What happens:
 1. Your login decides the project identity, and nothing is asked: the merchant slug Reactiv provisioned for your key (lowercase letters, digits and dashes) becomes the folder name, the root package name, the app name in `reactiv.conf.js` and the shell, and the default bundle identifier; the app UUID comes from the same login.
 2. The current platform version and its pinned `react` and `react-native` versions are read from the registry, and the template is downloaded with npm so the transcript shows where it came from.
 3. The template is expanded into `<path>/<slug>`, which must not exist or must be empty. A `git init` follows, and the CLI refuses to continue if the scaffold's `.gitignore` does not ignore `.npmrc`.
-4. Dependencies are installed once at the project root (`app/` is an npm workspace of it) with install scripts turned off and without npm's automatic peer installation (`--legacy-peer-deps`), so a peer a transitive package asks for never enters the project uninvited. The CLI tells you which packages declared an install script so you can run `npm rebuild` at the project root if the native build needs it.
+4. Dependencies are installed once at the project root (`app/` is an npm workspace of it) with install scripts turned off, development dependencies included whatever `NODE_ENV` says, and without npm's automatic peer installation (`--legacy-peer-deps`), so a peer a transitive package asks for never enters the project uninvited. The CLI tells you which packages declared an install script so you can run `npm rebuild` at the project root if the native build needs it.
 5. An initial commit is created. If anything fails, what this run created is removed so you can fix the cause and run again.
 
 ### `reactiv app run ios`
