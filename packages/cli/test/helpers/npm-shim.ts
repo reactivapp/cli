@@ -50,12 +50,16 @@ case "$1" in
   install)
     if grep -q 'CODEARTIFACT_AUTH_TOKEN' .npmrc 2>/dev/null; then echo "install saw a placeholder token line" >&2; exit 1; fi
     if ! grep -q '>>> reactiv' .npmrc 2>/dev/null; then echo "install ran without the managed block" >&2; exit 1; fi
-    node -e "
+    LEGACY_PEER_DEPS=0; for arg in "$@"; do [ "$arg" = "--legacy-peer-deps" ] && LEGACY_PEER_DEPS=1; done
+    SHIM_LEGACY_PEER_DEPS=$LEGACY_PEER_DEPS node -e "
       const fs = require('fs');
       const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
       const fallback = {'@reactivapp/mobile': '2608.13.1', react: '19.2.3', 'react-native': '0.86.0'};
+      const legacyPeerDeps = process.env.SHIM_LEGACY_PEER_DEPS === '1';
       for (const [name, version] of Object.entries(fallback)) {
-        const declared = (manifest.dependencies || {})[name] || (manifest.peerDependencies || {})[name] || version;
+        const own = (manifest.dependencies || {})[name] || (manifest.devDependencies || {})[name];
+        if (legacyPeerDeps && !own) continue;
+        const declared = own || (manifest.peerDependencies || {})[name] || version;
         fs.mkdirSync('node_modules/' + name, {recursive: true});
         const installed = name === '@reactivapp/mobile' ? {name, version: declared, dependencies: {}} : {name, version: declared};
         fs.writeFileSync('node_modules/' + name + '/package.json', JSON.stringify(installed));
@@ -155,7 +159,7 @@ export const buildTemplateTarball = (
         scripts: {typecheck: 'node node_modules/@reactivapp/mobile/toolchain/typecheck.mjs'},
         dependencies: {},
         peerDependencies: peers,
-        devDependencies: {typescript: '~5.8.3'},
+        devDependencies: {...peers, typescript: '~5.8.3'},
       }) + '\n',
     )
     mkdirSync(join(template, 'app', 'ios'), {recursive: true})

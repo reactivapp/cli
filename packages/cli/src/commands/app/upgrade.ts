@@ -16,6 +16,7 @@ import {
   findDelegationSteps,
   formatDelegationSteps,
   isExactVersion,
+  type ManifestSection,
   type PlatformTrio,
   setPlatformVersions,
 } from '../../lib/upgrade'
@@ -126,8 +127,9 @@ export class AppUpgrade extends Command {
       this.log('Downloading @reactivapp/app-template…')
       const templateDir = await registry.fetchTemplate()
 
-      const edits: Array<[string, 'dependencies' | 'peerDependencies']> = [
+      const edits: Array<[string, ManifestSection]> = [
         [libraryPath, 'peerDependencies'],
+        [libraryPath, 'devDependencies'],
         [appPath, 'dependencies'],
       ]
       let changed = false

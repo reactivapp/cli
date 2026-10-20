@@ -92,6 +92,7 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     expect(result.code).toBe(0)
     const expected = {'@reactivapp/mobile': B, ...PEERS[B]}
     expect(trioOf(manifest('package.json').peerDependencies)).toEqual(expected)
+    expect(trioOf(manifest('package.json').devDependencies)).toEqual(expected)
     expect(trioOf(manifest('app/package.json').dependencies)).toEqual(expected)
 
     const calls = npmCalls()
@@ -162,8 +163,18 @@ describe('app upgrade against a mock vending API and a fixture registry', () => 
     expect(rolledBack.code).toBe(0)
     expect(rolledBack.stderr).toContain(`moving back from ${B} to the older ${A}`)
     expect(trioOf(manifest('package.json').peerDependencies)).toEqual({'@reactivapp/mobile': A, ...PEERS[A]})
+    expect(trioOf(manifest('package.json').devDependencies)).toEqual({'@reactivapp/mobile': A, ...PEERS[A]})
     expect(trioOf(manifest('app/package.json').dependencies)).toEqual({'@reactivapp/mobile': A, ...PEERS[A]})
     expect(git(['status', '--porcelain'])).toBe('')
+  }, 60_000)
+
+  it('adds the trio to devDependencies of a project scaffolded before the template carried it, keeping the rest', async () => {
+    const library = manifest('package.json')
+    writeFileSync(join(project, 'package.json'), `${JSON.stringify({...library, devDependencies: {typescript: '~5.8.3'}})}\n`)
+    publish(B)
+    expect((await upgrade()).code).toBe(0)
+    expect(manifest('package.json').devDependencies).toEqual({typescript: '~5.8.3', '@reactivapp/mobile': B, ...PEERS[B]})
+    expect(trioOf(manifest('package.json').peerDependencies)).toEqual({'@reactivapp/mobile': B, ...PEERS[B]})
   }, 60_000)
 
   it('reports dependency drift the post-install check finds, with the rollback, keeping the change', async () => {

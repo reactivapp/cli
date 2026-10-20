@@ -170,6 +170,24 @@ export const formatPeerDrift = (drift: PeerDrift[]): string =>
     }),
   ].join('\n')
 
+export interface DevTrioDrift {
+  name: string
+  peer: string
+  dev: string
+}
+
+export const findDevTrioDrift = (library: Manifest): DevTrioDrift[] => {
+  const peers = peersOf(library)
+  const dev = specsOf(library.devDependencies, 'package.json "devDependencies"')
+  return PLATFORM_PACKAGES.filter(name => has(dev, name) && has(peers, name) && dev[name] !== peers[name]).map(name => ({name, peer: peers[name], dev: dev[name]}))
+}
+
+export const formatDevTrioDrift = (drift: DevTrioDrift[]): string =>
+  [
+    'package.json devDependencies do not match its peerDependencies, so the typecheck runs against a different platform than the app:',
+    ...drift.map(({name, peer, dev}) => `  ${name}: devDependencies "${dev}" but peerDependencies "${peer}" — set devDependencies.${name} to "${peer}" and run \`npm install\` at the project root`),
+  ].join('\n')
+
 const readPlatformManifest = (layout: ProjectLayout): Manifest => {
   const manifestPath = path.join(layout.appDir, 'node_modules', '@reactivapp', 'mobile', 'package.json')
   if (!fs.existsSync(manifestPath)) {
@@ -281,6 +299,8 @@ export const assertDependenciesInSync = (layout: ProjectLayout): void => {
   }
   const peerDrift = findPeerDrift(library, app)
   if (peerDrift.length > 0) throw new Error(formatPeerDrift(peerDrift))
+  const devTrioDrift = findDevTrioDrift(library)
+  if (devTrioDrift.length > 0) throw new Error(formatDevTrioDrift(devTrioDrift))
   const nestedFixes = Object.entries(libraryDeps).flatMap(([name, spec]) => {
     const nested = installedVersion(nestedPlatformCopy(layout, name))
     if (nested === undefined) return []

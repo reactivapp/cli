@@ -136,7 +136,7 @@ export const installWithRegistryAuth = async (
   cwd: string,
   operation: RegistryOperation = INIT_OPERATION,
 ): Promise<void> => {
-  const installArgs = ['install', '--no-audit', '--no-fund', '--ignore-scripts', '--loglevel', NPM_LOGLEVEL]
+  const installArgs = ['install', '--no-audit', '--no-fund', '--ignore-scripts', '--legacy-peer-deps', '--loglevel', NPM_LOGLEVEL]
   let result = await runTee('npm', installArgs, {cwd, env: npmEnv()})
   if (result.status !== 0 && isRegistryAuthError(result.stderr) && takeRegistryRetry(ctx)) {
     assertSameRegistries(registry, await refreshAfterRegistryAuthError(ctx, projectRoot), operation)

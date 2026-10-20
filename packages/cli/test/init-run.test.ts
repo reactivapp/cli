@@ -102,8 +102,8 @@ describe('app init and app run on the library layout', () => {
       expect(readFileSync(npmrc, 'utf8')).not.toContain('CODEARTIFACT_AUTH_TOKEN')
     }
     expect(installs()).toEqual([
-      'install --no-audit --no-fund --ignore-scripts --loglevel notice',
-      'install --no-audit --no-fund --ignore-scripts --loglevel notice',
+      'install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --loglevel notice',
+      'install --no-audit --no-fund --ignore-scripts --legacy-peer-deps --loglevel notice',
     ])
   }, 60_000)
 

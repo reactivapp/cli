@@ -38,6 +38,7 @@ describe('renderBlock', () => {
       `@reactiv-submissions:registry=${REGISTRY_URL}`,
       `//${REGISTRY_HOST}/npm/tools/:_authToken=${TOKEN}`,
       `//${REGISTRY_HOST}/npm/submissions-acme/:_authToken=${TOKEN}`,
+      'legacy-peer-deps=true',
       BLOCK_END,
     ])
     expect(BLOCK_START).toBe('# >>> reactiv (managed — do not edit; run `reactiv login` to refresh) >>>')

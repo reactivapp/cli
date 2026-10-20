@@ -147,7 +147,7 @@ export class AppInit extends Command {
           this.log('Installing library dependencies (npm, root)…')
           await installWithRegistryAuth(ctx, registry, targetDir, targetDir)
           if (!fs.existsSync(path.join(targetDir, 'node_modules', '@reactivapp', 'mobile', 'package.json'))) {
-            this.warn('the root install did not add the @reactivapp/mobile peer (is legacy-peer-deps set in your npm config?) — editor types and `npm run typecheck` need it; the app still runs')
+            this.warn(`the root install did not add @reactivapp/mobile — editor types and \`npm run typecheck\` need it; add it with \`npm install --save-dev --save-exact @reactivapp/mobile@${platformVersion} react@${reactVersion} react-native@${reactNativeVersion}\`; the app still runs`)
           }
           this.log(`Installing app shell dependencies (npm, ${APP_DIR}/)…`)
           await installWithRegistryAuth(ctx, registry, targetDir, path.join(targetDir, APP_DIR))

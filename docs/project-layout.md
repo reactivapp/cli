@@ -28,6 +28,7 @@ The root `package.json` and `src/` are the submission. Its `name` is the merchan
 - `files`: `["src"]`.
 - `dependencies`: packages your code imports, each with an exact version.
 - `peerDependencies`: `@reactivapp/mobile`, `react` and `react-native` at the exact versions the app shell runs, plus any package the platform supplies that your code imports.
+- `devDependencies`: the same three at the same versions, so the root install has the platform for `npm run typecheck` and your editor, plus local tooling. The CLI installs with `--legacy-peer-deps` and writes `legacy-peer-deps=true` into the project's managed `.npmrc` block, so npm never adds peers on its own, from the CLI or from your own `npm install`: a package your code needs is declared, never inherited.
 
 `src/index.ts` must export `CustomCompositions` and `registerCustomComponents` as named values. Type-only and default exports do not count. Everything your code imports by relative path must live under `src/`.
 

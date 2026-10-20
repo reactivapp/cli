@@ -7,13 +7,32 @@ import {
   assertDependenciesInSync,
   assertSubmittableDependencies,
   findDependencyDrift,
+  findDevTrioDrift,
   formatDependencyDrift,
+  formatDevTrioDrift,
   readPlatformSupplied,
   resolveLayout,
 } from '../src/lib/layout'
 import {assertLibraryManifest, buildSubmissionManifest} from '../src/lib/submission'
 
 const platform = {'@reactivapp/mobile': '2608.13.1', react: '19.2.3', 'react-native': '0.86.0'}
+
+describe('findDevTrioDrift', () => {
+  it('reports nothing when devDependencies carry the trio at the peer versions', () => {
+    expect(findDevTrioDrift({peerDependencies: platform, devDependencies: {...platform, typescript: '~5.8.3'}})).toEqual([])
+  })
+
+  it('reports nothing for a project scaffolded before the template carried the trio', () => {
+    expect(findDevTrioDrift({peerDependencies: platform, devDependencies: {typescript: '~5.8.3'}})).toEqual([])
+    expect(findDevTrioDrift({peerDependencies: platform})).toEqual([])
+  })
+
+  it('reports a platform package whose devDependencies version differs from the peer', () => {
+    const drift = findDevTrioDrift({peerDependencies: platform, devDependencies: {...platform, '@reactivapp/mobile': '2607.1.1'}})
+    expect(drift).toEqual([{name: '@reactivapp/mobile', peer: '2608.13.1', dev: '2607.1.1'}])
+    expect(formatDevTrioDrift(drift)).toContain('set devDependencies.@reactivapp/mobile to "2608.13.1"')
+  })
+})
 
 describe('findDependencyDrift', () => {
   it('reports nothing when the shell mirrors the library exactly', () => {

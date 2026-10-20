@@ -1,0 +1,5 @@
+---
+'@reactivapp/cli': minor
+---
+
+`reactiv app init` and `reactiv app upgrade` now run `npm install` with `--legacy-peer-deps`, and the managed block the CLI writes into the project's `.npmrc` files sets `legacy-peer-deps=true` so your own `npm install` behaves the same way: npm no longer pulls in packages that a transitive dependency names as a peer. A fresh scaffold was failing with ERESOLVE when such a peer's newest release conflicted with the platform's `react-native`, even though nothing in the project used it. The root `package.json` now also lists `@reactivapp/mobile`, `react` and `react-native` in `devDependencies` (the app template ships them there), which is what gives the root install the platform for `npm run typecheck` once peers stop being installed automatically; `reactiv app upgrade` keeps that section on the same versions as `peerDependencies`. Projects scaffolded earlier keep working: if the root install ends up without the platform, the CLI prints the one command that adds it.
