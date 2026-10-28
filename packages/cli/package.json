@@ -39,7 +39,7 @@
     "@types/node": "^24.13.3",
     "eslint": "^9.34.0",
     "ini": "^5.0.0",
-    "typescript-eslint": "^8.40.0",
+    "typescript-eslint": "^8.72.0",
     "vitest": "^3.2.0"
   },
   "oclif": {
