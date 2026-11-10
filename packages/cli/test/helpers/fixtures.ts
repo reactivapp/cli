@@ -5,6 +5,7 @@ import {join} from 'node:path'
 import {expect} from 'vitest'
 
 import type {MeResponse, TokenResponse} from '../../src/lib/auth/contract'
+import type {SubmitResponse} from '../../src/lib/auth/contract/submit'
 
 export const binPath = join(__dirname, '..', '..', 'bin', 'run')
 
@@ -53,6 +54,13 @@ export const tokenResponse = (overrides: Partial<TokenResponse> = {}, now = Date
   toolsRegistryUrl: TOOLS_REGISTRY_URL,
   merchant: MERCHANT,
   ...overrides,
+})
+
+export const SUBMISSION_ID = '01JC2Y7N4M3K5T8R6P9Q1W0X2Z'
+export const DASHBOARD_URL = `https://dashboard.example.test/store/acme-outfitters/apps/reactiv/app/plus/submissions/${SUBMISSION_ID}`
+
+export const submitResponse = (overrides: Partial<SubmitResponse> = {}): {data: SubmitResponse} => ({
+  data: {submissionId: SUBMISSION_ID, status: 'Processing', dashboardUrl: DASHBOARD_URL, ...overrides},
 })
 
 export const assertNoSecrets = (...outputs: string[]): void => {

@@ -1,5 +1,6 @@
 import type {ApiKey} from './credentials'
 import type {ErrorCode, ErrorResponse, MeResponse, TermsAcceptRequest, TermsAcceptResponse, TermsResponse, TokenResponse} from './contract'
+import type {SubmitRequest, SubmitResponse} from './contract/submit'
 import {AuthError} from './errors'
 
 export const DEFAULT_VENDING_API_URL = 'https://plus-devtools-staging.dev.reactivapp.com'
@@ -71,6 +72,7 @@ export interface VendingClient {
   terms(): Promise<TermsResponse>
   acceptTerms(key: ApiKey, request: TermsAcceptRequest): Promise<TermsAcceptResponse>
   mint(key: ApiKey): Promise<TokenResponse>
+  submit(key: ApiKey, request: SubmitRequest): Promise<{data: SubmitResponse}>
 }
 
 export interface VendingClientOptions {
@@ -130,6 +132,9 @@ export const isErrorResponse = (value: unknown): value is Pick<ErrorResponse, 'c
   (value.requestId === undefined || isString(value.requestId)) &&
   (value.details === undefined || isRecord(value.details))
 
+export const isSubmitEnvelope: Guard<{data: SubmitResponse}> = (value): value is {data: SubmitResponse} =>
+  isRecord(value) && isRecord(value.data) && isString(value.data.submissionId) && isString(value.data.dashboardUrl)
+
 const parseJson = (text: string): unknown => {
   try {
     return JSON.parse(text) as unknown
@@ -168,7 +173,15 @@ export const createVendingClient = (options: VendingClientOptions): VendingClien
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
   const userAgent = `reactiv-cli/${options.cliVersion} (${options.platform ?? process.platform})`
 
-  const call = async <T>(method: 'GET' | 'POST', path: string, guard: Guard<T>, key?: ApiKey, body?: unknown): Promise<T> => {
+  // waitOnRateLimit false: a 429 fails at once.
+  const call = async <T>(
+    method: 'GET' | 'POST',
+    path: string,
+    guard: Guard<T>,
+    key?: ApiKey,
+    body?: unknown,
+    {waitOnRateLimit = true}: {waitOnRateLimit?: boolean} = {},
+  ): Promise<T> => {
     const headers: Record<string, string> = {'User-Agent': userAgent, Accept: 'application/json'}
     if (key) headers.Authorization = `Bearer ${key.reveal()}`
     if (body !== undefined) headers['Content-Type'] = 'application/json'
@@ -214,7 +227,7 @@ export const createVendingClient = (options: VendingClientOptions): VendingClien
         const retryAfter = parseRetryAfter(retryAfterHeader, now())
         const waitSeconds = retryAfter ?? FALLBACK_RATE_LIMIT_WAIT_S
         // Beyond setTimeout's range the timer would fire at once instead of waiting.
-        if (!rateLimitRetried && waitSeconds * 1000 <= MAX_TIMER_MS) {
+        if (waitOnRateLimit && !rateLimitRetried && waitSeconds * 1000 <= MAX_TIMER_MS) {
           rateLimitRetried = true
           options.onWait?.(`Reactiv's token service is rate limiting; retrying in ${waitSeconds} s.`)
           await sleep(waitSeconds * 1000)
@@ -250,5 +263,8 @@ export const createVendingClient = (options: VendingClientOptions): VendingClien
     terms: () => call('GET', '/v1/terms', isTermsResponse),
     acceptTerms: (key, request) => call('POST', '/v1/terms/accept', isTermsAcceptResponse, key, request),
     mint: key => call('POST', '/v1/tokens', isTokenResponse, key),
+    // Submits are limited per hour and a published version can be recorded later, so a 429 is not waited out.
+    submit: (key, request) =>
+      call('POST', '/v1/submissions', isSubmitEnvelope, key, request, {waitOnRateLimit: false}),
   }
 }

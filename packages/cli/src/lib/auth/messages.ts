@@ -49,7 +49,7 @@ export const vendingUnreachable = (requestId: string | undefined, cachedTokenExp
 export const registryRefreshFailed = (vendingMessage: string): string =>
   `Registry token could not be refreshed: ${vendingMessage}`
 
-const withRequestId = (message: string, requestId: string | undefined): string =>
+export const withRequestId = (message: string, requestId: string | undefined): string =>
   requestId ? `${message}\nRequest id: ${sanitizeForOutput(requestId)}` : message
 
 export const describeVendingError = (error: VendingError, cachedTokenExpiresAt?: string): string => {

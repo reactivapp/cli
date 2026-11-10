@@ -7,6 +7,8 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {
   API_KEY,
   assertNoSecrets,
+  DASHBOARD_URL,
+  errorReply,
   isolatedEnv,
   MERCHANT,
   meResponse,
@@ -14,11 +16,14 @@ import {
   REGISTRY_URL,
   runCli,
   startMockVending,
+  SUBMISSION_ID,
+  submitResponse,
   tokenResponse,
   type MockReply,
 } from './helpers/fixtures'
 import {installNpmShim, type NpmShim} from './helpers/npm-shim'
 import {SECRET_PATTERNS} from '../src/lib/secret-scan.js'
+import {computeSha256} from '../src/lib/submission.js'
 
 const PLATFORM_PEERS = {'@reactivapp/mobile': '2608.13.1', react: '19.2.3', 'react-native': '0.86.0'}
 
@@ -73,6 +78,7 @@ describe('app submit against a mock vending API and a fixture registry', () => {
   let shim: NpmShim
   let mock: Awaited<ReturnType<typeof startMockVending>>
   let tokenReplies: MockReply[]
+  let submitReply: MockReply
   let env: NodeJS.ProcessEnv
 
   beforeEach(async () => {
@@ -82,9 +88,11 @@ describe('app submit against a mock vending API and a fixture registry', () => {
     writeFixtureProject(projectDir)
     shim = installNpmShim(workDir)
     tokenReplies = []
+    submitReply = {status: 200, body: submitResponse()}
     mock = await startMockVending({
       'GET /v1/me': () => ({status: 200, body: meResponse()}),
       'POST /v1/tokens': () => tokenReplies.shift() ?? {status: 200, body: tokenResponse()},
+      'POST /v1/submissions': () => submitReply,
     })
     env = isolatedEnv(join(workDir, 'home'), {
       ...shim.env,
@@ -118,6 +126,8 @@ describe('app submit against a mock vending API and a fixture registry', () => {
 
   // oclif wraps long error lines behind a ' ›' gutter; join them back up.
   const flat = (text: string): string => text.replace(/\s*›\s*/g, ' ').replace(/\s+/g, ' ')
+
+  const recordCalls = () => mock.requests.filter(request => request.method === 'POST' && request.path === '/v1/submissions')
 
   const publishedTarball = (): string => {
     if (npmCalls('publish').length === 0) throw new Error('nothing was published')
@@ -242,10 +252,139 @@ describe('app submit against a mock vending API and a fixture registry', () => {
     expect(npmCalls('view')).toEqual([])
   }, 30_000)
 
-  it('never publishes on a dry run', async () => {
+  it('never publishes or records on a dry run', async () => {
     await submit(['0.1.7'])
     expect(npmCalls('publish')).toEqual([])
+    expect(recordCalls()).toEqual([])
   }, 30_000)
+
+  describe('recording the published version', () => {
+    const ANSI_CODES = /\u001b\[[0-9;]*m/g
+    // The banner as cli-ui draws it into a pipe, so wrapped lines compare as drawn.
+    const banner = async (kind: 'info' | 'success', headline: string, body: string[]): Promise<string> => {
+      const ui = await import('@reactivapp/cli-ui')
+      let out = ''
+      const render = kind === 'info' ? ui.renderInfo : ui.renderSuccess
+      render({headline, body}, {write: chunk => (out += chunk)})
+      return out.replace(ANSI_CODES, '')
+    }
+    const todaysReceipt = (sha256: string): string[] => [
+      '@reactiv-submissions/acme@0.1.8-draft.2',
+      'review cycle 0.1.8 (approval will publish 0.1.8)',
+      `appUuid ${MERCHANT.appUuid}`,
+      'dependencies date-fns',
+      'dist-tag draft',
+      `registry ${REGISTRY_URL}`,
+      `sha256 ${sha256}`,
+    ]
+    const lines = (text: string): string[] => text.replace(ANSI_CODES, '').split('\n')
+    const record = (version: string, extra: string[] = []) =>
+      runCli(['app', 'submit', '--record', version, ...extra], {cwd: workDir, env}).then(result => {
+        assertNoSecrets(result.stdout, result.stderr)
+        return result
+      })
+    // Retries of a 5xx and their 1 s and 2 s waits are covered with an injected sleep in devtools-submit.test.ts;
+    // these runs use replies that are not retried, so no test waits for real time.
+    const tooMany = (): MockReply => errorReply(429, 'rate_limited')
+
+    it('keeps the seven receipt lines, adds the submission id and Dashboard link, then prints the link on its own', async () => {
+      const dryRun = await submit(['0.1.7', '0.1.8-draft.1'])
+      const published = await submit(['0.1.7', '0.1.8-draft.1'], {dryRun: false})
+      expect(published.code).toBe(0)
+      const receipt = todaysReceipt(computeSha256(publishedTarball()))
+      expect(dryRun.stdout.replace(ANSI_CODES, '')).toContain(await banner('info', 'Dry run complete (publish skipped)', receipt))
+      const successBanner = await banner('success', 'Submission published', [...receipt, `submission ${SUBMISSION_ID}`, `dashboard ${DASHBOARD_URL}`])
+      expect(published.stdout.replace(ANSI_CODES, '')).toContain(`Recording the submission with Reactiv…\n${successBanner}${DASHBOARD_URL}\n`)
+      expect(recordCalls().map(request => request.body)).toEqual(['{"version":"0.1.8-draft.2"}'])
+      expect(recordCalls()[0].headers.authorization).toBe(`Bearer ${API_KEY}`)
+    }, 30_000)
+
+    it('keeps the publish, prints the recovery command on its own line and fails when recording fails', async () => {
+      submitReply = tooMany()
+      const result = await submit(['0.1.7', '0.1.8-draft.1'], {dryRun: false})
+      expect(result.code).toBe(2)
+      expect(npmCalls('publish')).toHaveLength(1)
+      expect(recordCalls()).toHaveLength(1)
+      expect(result.stdout).not.toContain('Submission published')
+      expect(result.stderr).toContain('Submission published, not recorded')
+      expect(result.stderr).toContain('@reactiv-submissions/acme@0.1.8-draft.2')
+      const tail = lines(result.stderr).slice(-5)
+      expect(tail[0]).toBe('Too many submissions — try again later.')
+      expect(tail[1]).toMatch(/^Request id: \S+$/)
+      expect(tail.slice(2)).toEqual([
+        'Version 0.1.8-draft.2 is published but not recorded. Once the cause is fixed, record it without publishing again:',
+        '  reactiv app submit --record 0.1.8-draft.2',
+        '',
+      ])
+    }, 30_000)
+
+    it('--record sends the same body as the publish run, and nothing else runs', async () => {
+      submitReply = tooMany()
+      await submit(['0.1.7', '0.1.8-draft.1'], {dryRun: false})
+      const sentByPublishRun = recordCalls()[0].body
+      const npmLog = readFileSync(shim.log, 'utf8')
+      const requestsBefore = mock.requests.length
+
+      submitReply = {status: 200, body: submitResponse()}
+      const result = await record('0.1.8-draft.2')
+      expect(result.code).toBe(0)
+      expect(result.stdout.replace(ANSI_CODES, '')).toContain(
+        `${await banner('success', 'Submission recorded', [`submission ${SUBMISSION_ID}`, `dashboard ${DASHBOARD_URL}`])}${DASHBOARD_URL}\n`,
+      )
+      const sinceRecord = mock.requests.slice(requestsBefore)
+      expect(sinceRecord.map(request => `${request.method} ${request.path}`)).toEqual(['GET /v1/me', 'POST /v1/submissions'])
+      expect(sinceRecord[1].body).toBe(sentByPublishRun)
+      expect(readFileSync(shim.log, 'utf8')).toBe(npmLog)
+    }, 30_000)
+
+    it('--record refuses a value that is not a draft version before any call', async () => {
+      const result = await record('not-a-version')
+      expect(result.code).not.toBe(0)
+      expect(flat(result.errorText)).toContain('--record takes the version a failed submit printed, such as 0.1.8-draft.2; "not-a-version" is not one.')
+      expect(mock.requests).toEqual([])
+      expect((await record('0.1.8')).code).not.toBe(0)
+      expect(mock.requests).toEqual([])
+    }, 30_000)
+
+    it('--record shows a refusal without a rerun hint and without claiming a publish', async () => {
+      submitReply = {status: 400, body: {code: 'invalid_request', message: 'The request is malformed.', retryable: false, requestId: 'req-9'}}
+      const result = await record('0.1.8-draft.2')
+      expect(result.code).toBe(2)
+      expect(recordCalls()).toHaveLength(1)
+      expect(lines(result.stderr)).toEqual(['The request is malformed.', 'Request id: req-9', ''])
+    }, 30_000)
+
+    it('--record on a 404 names the missing service, not a CLI update, and offers the command again', async () => {
+      submitReply = errorReply(404, 'not_found')
+      const result = await record('0.1.8-draft.2')
+      expect(result.code).toBe(2)
+      expect(result.stderr).not.toContain('update the CLI')
+      expect(lines(result.stderr).slice(-5)).toEqual([
+        'Reactiv could not find the submissions service (HTTP 404). Contact Reactiv if this continues.',
+        expect.stringMatching(/^Request id: \S+$/),
+        'Then run:',
+        '  reactiv app submit --record 0.1.8-draft.2',
+        '',
+      ])
+    }, 30_000)
+
+    it('--record offers the same command again when the failure can pass', async () => {
+      submitReply = tooMany()
+      const result = await record('0.1.8-draft.2')
+      expect(result.code).toBe(2)
+      expect(result.stderr).not.toContain('published')
+      expect(lines(result.stderr).slice(-3)).toEqual(['Then run:', '  reactiv app submit --record 0.1.8-draft.2', ''])
+    }, 30_000)
+
+    it.each([
+      [['--dry-run'], '--dry-run=true cannot also be provided when using --record'],
+    ])('--record cannot be combined with %j', async (extra, message) => {
+      const result = await runCli(['app', 'submit', '--record', '0.1.8-draft.2', ...extra], {cwd: projectDir, env})
+      expect(result.code).not.toBe(0)
+      expect(result.errorText).toContain(message)
+      expect(mock.requests).toEqual([])
+    }, 30_000)
+  })
 
   // Assembled at runtime so no credential-shaped literal sits in this file.
   const underscore = '_'
