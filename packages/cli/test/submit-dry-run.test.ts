@@ -354,6 +354,20 @@ describe('app submit against a mock vending API and a fixture registry', () => {
       expect(lines(result.stderr)).toEqual(['The request is malformed.', 'Request id: req-9', ''])
     }, 30_000)
 
+    it('--record on a 404 names the missing service, not a CLI update, and offers the command again', async () => {
+      submitReply = errorReply(404, 'not_found')
+      const result = await record('0.1.8-draft.2')
+      expect(result.code).toBe(2)
+      expect(result.stderr).not.toContain('update the CLI')
+      expect(lines(result.stderr).slice(-5)).toEqual([
+        'Reactiv could not find the submissions service (HTTP 404). Contact Reactiv if this continues.',
+        expect.stringMatching(/^Request id: \S+$/),
+        'Then run:',
+        '  reactiv app submit --record 0.1.8-draft.2',
+        '',
+      ])
+    }, 30_000)
+
     it('--record offers the same command again when the failure can pass', async () => {
       submitReply = tooMany()
       const result = await record('0.1.8-draft.2')

@@ -167,9 +167,22 @@ describe('recordSubmission', () => {
   ])('rejects a 2xx with %s and keeps its request id', async (_label, body) => {
     const {failure, calls} = fakeRecord([{status: 200, body, headers: {'x-request-id': 'req-7'}}])
     const {error, reason} = await failure()
-    expect(isRetryable(error)).toBe(false)
-    expect(reason).toBe("Reactiv's token service returned an unexpected response (HTTP 200).\nRequest id: req-7")
+    expect(isRetryable(error)).toBe(true)
+    expect(reason).toBe("Reactiv's answer did not contain the submission (HTTP 200). Contact Reactiv if this continues.\nRequest id: req-7")
     expect(calls).toHaveLength(1)
+  })
+
+  it.each([
+    ['a not_found error body', refusal(404, 'not_found', 'No such route. If you are calling /v1/…, update the Reactiv CLI.')],
+    ['no error body', {status: 404, body: ''} as MockReply],
+  ])('says the submissions service was not found on a 404 with %s, and does not suggest updating the CLI', async (_label, reply) => {
+    const {failure, calls, sleeps} = fakeRecord([{...reply, headers: {'x-request-id': 'req-4'}}])
+    const {error, reason} = await failure()
+    expect(isRetryable(error)).toBe(true)
+    expect(reason).toMatch(/^Reactiv could not find the submissions service \(HTTP 404\)\. Contact Reactiv if this continues\.\nRequest id: req-[14]$/)
+    expect(reason).not.toContain('update')
+    expect(calls).toHaveLength(1)
+    expect(sleeps).toEqual([])
   })
 
   it('never prints the key or control characters from server text', async () => {
