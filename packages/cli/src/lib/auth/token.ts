@@ -128,7 +128,7 @@ const deleteFileLogin = async (ctx: AuthContext, keyId: string): Promise<void> =
   }, ctx.lockOptions)
 }
 
-const vendingFailure = async (ctx: AuthContext, identity: Identity | undefined, error: unknown): Promise<never> => {
+export const vendingFailure = async (ctx: AuthContext, identity: Identity | undefined, error: unknown): Promise<never> => {
   if (!(error instanceof VendingError)) throw error
   if ((error.code === 'key_revoked' || error.code === 'key_expired') && identity?.source === 'file') {
     await deleteFileLogin(ctx, identity.keyId)

@@ -103,14 +103,18 @@ Validates and packs the library at the project root and publishes it as a draft 
 
 ```
 reactiv app submit [--dry-run] [--max-size-mb <n>]
+reactiv app submit --record <version>
 ```
 
 | Flag | Effect |
 | --- | --- |
 | `--dry-run` | Run every check and pack the library, but publish nothing. The token service and the registry are still contacted, and the project's `.npmrc` token may be refreshed. |
 | `--max-size-mb` | Maximum unpacked size in MB. Default 5. |
+| `--record <version>` | Record a version that is already published as a submission, and do nothing else: no checks, no pack, no publish. Use the version and command a failed submit printed; a value that is not a draft version (`<x.y.z>-draft.<N>`) is refused before anything is sent. Cannot be combined with `--dry-run`; `--max-size-mb` has no effect with it. |
 
 The checks are listed in [Project layout](project-layout.md#what-reactiv-app-submit-checks). The local ones run first; the CLI then contacts Reactiv's token service for a registry token and the submissions registry for the next draft version, scans the staged copy for credentials, packs `src/` and a generated `package.json` into a tarball, verifies the tarball's contents, and publishes it as `@reactiv-submissions/<slug>@<x.y.z>-draft.<N>` with the dist-tag `draft`. The receipt shows the version, the review-cycle base version, the app UUID, the declared dependencies, the registry and the tarball's sha256.
+
+After the publish the CLI records the version with Reactiv as a submission, sending only the version; Reactiv works out the store from your API key. The receipt then ends with two more lines: `submission <id>` and `dashboard <link>`, the submission's page in the Reactiv Dashboard. The link is printed once more on a line of its own below the receipt, so it can be opened or copied in one piece. A network error or a server error is tried three times in all, one and then two seconds apart; a refusal, including "too many submissions", is not retried. If recording still fails, the published version is kept and the CLI does not publish it again: it prints why, the version, and `reactiv app submit --record <version>` on a line of its own, and exits with an error. Run that command once the cause is fixed. Recording the same version twice is harmless, because Reactiv records each version of a store only once. When `--record` itself fails, it offers to run the same command again only if the failure can pass (Reactiv unreachable, or too many submissions); a refusal such as a revoked key needs its cause fixed first.
 
 ## Environment variables
 

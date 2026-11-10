@@ -5,7 +5,9 @@ import * as path from 'node:path'
 
 import {createAuthContext, reportAuthError} from '../../lib/auth/context.js'
 import {SUBMISSIONS_SCOPE} from '../../lib/auth/npmrc.js'
-import {ensureRegistryAuth, refreshAfterRegistryAuthError, type RegistryAuth, takeRegistryRetry} from '../../lib/auth/token.js'
+import type {SubmitResponse} from '../../lib/auth/contract/submit.js'
+import {type AuthContext, ensureRegistryAuth, refreshAfterRegistryAuthError, type RegistryAuth, takeRegistryRetry} from '../../lib/auth/token.js'
+import {describeRecordFailure, isRetryable, publishedNotRecorded, recordCommand, recordSubmission} from '../../lib/devtools-submit.js'
 import {assertImportsDeclared, type DeclaredPackages, readDeclaredPackages} from '../../lib/imports.js'
 import {
   assertDependenciesInSync,
@@ -18,6 +20,7 @@ import {
 } from '../../lib/layout.js'
 import {assertNoAppNativeIntegration} from '../../lib/native-integration.js'
 import {capture, captureAll, isRegistryAuthError, NPM_LOGLEVEL, npmEnv, runTee} from '../../lib/npm.js'
+import {sanitizeForOutput} from '../../lib/auth/errors.js'
 import {loadProjectIdentity, type ProjectIdentity} from '../../lib/project.js'
 import {findSecretsInDirectory, formatSecretFindings} from '../../lib/secret-scan.js'
 import {
@@ -28,6 +31,7 @@ import {
   assertTarballContents,
   checkSizeCap,
   computeSha256,
+  DRAFT_VERSION_PATTERN,
   draftBaseVersion,
   findEntryInTarball,
   findForbiddenPaths,
@@ -56,11 +60,17 @@ export class AppSubmit extends Command {
   static override flags = {
     'max-size-mb': Flags.integer({description: 'maximum unpacked size in MB', default: DEFAULT_SIZE_CAP_MB, min: 1}),
     'dry-run': Flags.boolean({description: 'run everything including pack but skip the actual publish', default: false}),
+    record: Flags.string({
+      description: 'record an already published version as a submission, without packing or publishing again',
+      helpValue: '<version>',
+      exclusive: ['dry-run'],
+    }),
   }
 
   async run(): Promise<void> {
     const {renderSuccess, renderInfo} = await import('@reactivapp/cli-ui')
     const {flags} = await this.parse(AppSubmit)
+    if (flags.record !== undefined) return this.recordOnly(flags.record)
     const projectRoot = process.cwd()
 
     if (!fs.existsSync(path.join(projectRoot, 'reactiv.conf.js'))) {
@@ -250,14 +260,60 @@ export class AppSubmit extends Command {
         this.error(`the registry rejected the publish — npm publish exited with ${publish.status}`)
       }
 
+      // The version is published from here on: a failure below never publishes again.
+      let record: SubmitResponse
+      try {
+        record = await this.record(ctx, version)
+      } catch (error) {
+        const reason = await describeRecordFailure(ctx, error)
+        const {renderWarning} = await import('@reactivapp/cli-ui')
+        renderWarning({headline: 'Submission published, not recorded', body: receipt})
+        this.fail([reason, publishedNotRecorded(version), `  ${recordCommand(version)}`])
+      }
+
       renderSuccess({
         headline: 'Submission published',
-        body: receipt,
+        body: [...receipt, ...recordLines(record)],
       })
+      this.log(sanitizeForOutput(record.dashboardUrl))
     } catch (error) {
       reportAuthError(this, error)
     } finally {
       fs.rmSync(stagingDir, {recursive: true, force: true})
     }
   }
+
+  private async record(ctx: AuthContext, version: string): Promise<SubmitResponse> {
+    this.log('Recording the submission with Reactiv…')
+    return recordSubmission(ctx, version)
+  }
+
+  // Plain lines: oclif's error gutter would wrap the command to run.
+  private fail(lines: string[]): never {
+    for (const line of lines) this.logToStderr(line)
+    return this.exit(2)
+  }
+
+  private async recordOnly(version: string): Promise<void> {
+    if (!DRAFT_VERSION_PATTERN.test(version)) {
+      this.error(`--record takes the version a failed submit printed, such as 0.1.8-draft.2; "${sanitizeForOutput(version)}" is not one.`)
+    }
+    const {renderSuccess} = await import('@reactivapp/cli-ui')
+    const ctx = createAuthContext(this)
+    let record: SubmitResponse
+    try {
+      record = await this.record(ctx, version)
+    } catch (error) {
+      const reason = await describeRecordFailure(ctx, error)
+      // A refusal (a 4xx other than 429) is not fixed by running the same call again.
+      this.fail(isRetryable(error) ? [reason, 'Then run:', `  ${recordCommand(version)}`] : [reason])
+    }
+    renderSuccess({headline: 'Submission recorded', body: recordLines(record)})
+    this.log(sanitizeForOutput(record.dashboardUrl))
+  }
 }
+
+const recordLines = (record: SubmitResponse): string[] => [
+  `submission ${sanitizeForOutput(record.submissionId)}`,
+  `dashboard ${sanitizeForOutput(record.dashboardUrl)}`,
+]

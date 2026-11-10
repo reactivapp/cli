@@ -70,6 +70,10 @@ Another Metro is running on this machine. Stop it, then run `reactiv app run ios
 
 Try again in a few minutes. When the service answered, the message includes a request id; include it when you report the problem.
 
+## `Version … is published but not recorded`
+
+`reactiv app submit` published your version, but Reactiv did not record it as a submission, so it does not appear in the Dashboard yet. The first line says why: Reactiv could not be reached (try again in a few minutes), too many submissions (try again later), or a refusal such as a revoked or expired key (fix that first, for example with `reactiv login`). Then run the command the CLI printed on a line of its own, `reactiv app submit --record <version>`. It sends only the record call; it does not pack or publish again, so the version Reactiv reviews is the one already published. Do not run a plain `reactiv app submit` instead: that publishes a new draft version.
+
 ## `Reactiv's token service no longer serves this CLI's API version`
 
 Update the CLI: `npm install -g @reactivapp/cli@latest`.
