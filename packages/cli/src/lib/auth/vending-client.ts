@@ -3,7 +3,7 @@ import type {ErrorCode, ErrorResponse, MeResponse, TermsAcceptRequest, TermsAcce
 import type {SubmitRequest, SubmitResponse} from './contract/submit'
 import {AuthError} from './errors'
 
-export const DEFAULT_VENDING_API_URL = 'https://plus-devtools-staging.dev.reactivapp.com'
+export const DEFAULT_VENDING_API_URL = 'https://plus-devtools.reactivapp.com'
 export const VENDING_URL_ENV = 'REACTIV_VENDING_API_URL'
 
 export const REQUEST_TIMEOUT_MS = 10_000

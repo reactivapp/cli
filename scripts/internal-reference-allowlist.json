@@ -10,11 +10,11 @@
     },
     {
       "host": "plus-devtools-staging.dev.reactivapp.com",
-      "reason": "the Reactiv token service the CLI talks to by default today"
+      "reason": "the earlier default hostname of the Reactiv token service, named in the changelog"
     },
     {
       "host": "plus-devtools.reactivapp.com",
-      "reason": "the production hostname of the Reactiv token service, named in the release checklist as the default a later release switches to"
+      "reason": "the Reactiv token service the CLI talks to by default"
     },
     {
       "host": "github.com",

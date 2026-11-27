@@ -161,7 +161,7 @@ describe('secret scan (scripts/secret-patterns.ere)', () => {
 
 describe('endpoint allowlist', () => {
   it('passes allowed hosts', () => {
-    const content = "http.get({host: '127.0.0.1'}); fetch('https://plus-devtools-staging.dev.reactivapp.com/v1/me'); 'git+https://github.com/reactivapp/cli.git'"
+    const content = "http.get({host: '127.0.0.1'}); fetch('https://plus-devtools.reactivapp.com/v1/me'); 'git+https://github.com/reactivapp/cli.git'"
     assert.deepEqual(findEndpointProblems('dist/x.js', content, config.allowedHosts), [])
   })
 

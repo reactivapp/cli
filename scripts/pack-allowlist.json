@@ -38,7 +38,7 @@
       "reason": "IPv6 loopback literal; the CLI accepts an http REACTIV_VENDING_API_URL override only on loopback addresses (mock servers)"
     },
     {
-      "host": "plus-devtools-staging.dev.reactivapp.com",
+      "host": "plus-devtools.reactivapp.com",
       "reason": "default Reactiv token-vending API endpoint (DEFAULT_VENDING_API_URL); the only service the CLI sends the API key to"
     },
     {
